@@ -3,6 +3,7 @@
 Community skins, conversation portraits, 3D heads, character select portraits and other included models: BaconWizard17.
 Source and permission: https://marvelmods.com/forum/index.php/topic,10629.0.html
 Use is permitted with credit, as stated by BaconWizard17 (owner verified 2026-10-23).
+His download readme also asks that the skins are not shared outside marvelmods.com and not sold. This tool follows that: it never bundles or re-hosts the archives - each player downloads them from the author's own links, and they are converted on that player's PC.
 Per-costume co-credits will be retained from the source posts. Wolverine Original/Astonishing texture co-credit: Maegawa.
 
 Generated/downloaded assets are local-only and must not be committed, mirrored or published.
