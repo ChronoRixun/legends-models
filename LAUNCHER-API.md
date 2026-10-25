@@ -100,9 +100,13 @@ Results:
   `python_modules`, `sampler`, `extractor`), `heroes{key: {name, skin, villain, tiers{tier: {available, reason,
   source, status, note, author, costumes[], costume_info[], cached{}}}}}`.
   `author` is the tier's credited author (`BaconWizard17` for community, `""` for models from the player's games).
-  `costume_info[]` is one row per entry of `costumes[]` (same order): `{id, label, author, credit, source_url?,
-  bytes?, preview?}` - `id` is what `--costume hero=tier:ID` takes, `label` a display name ("Classic yellow/blue",
-  "Ultimate XML1", "MUA1 costume 0801" where the research named none), `credit` one plain line ("by BaconWizard17
+  `costume_info[]` is one row per entry of `costumes[]` (same order): `{id, label, author, credit, description?,
+  source_url?, bytes?, preview?}` - `id` is what `--costume hero=tier:ID` takes, `label` a display name: for
+  MUA1/MUA2/XML2 models the game's own costume name from its stat tables ("Astonishing", "Modern", "Classic";
+  "Story character model", or the character's own name such as "Dark Psylocke", for a story-NPC model; read from
+  the player's install when scanned, else from the shipped `data/costume-names.json`), the costume name for
+  community skins ("Ultimate XML1"); `description` (optional, game models) what it looks like where research
+  described it ("Classic yellow/blue"); `credit` one plain line ("by BaconWizard17
   (marvelmods.com)" / "from your own copy of Marvel: Ultimate Alliance"), `source_url` the author's post and `bytes`
   the archive size (community), `preview` an absolute path to the author's character-select portrait PNG when that
   archive is already extracted on this PC (never downloaded by `scan`; absent otherwise).

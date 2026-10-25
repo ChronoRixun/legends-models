@@ -31,7 +31,9 @@ class Costumes(Fixture):
         w = ev[-1]['heroes']['wolverine']['tiers']
         mua1 = {c['id']: c for c in w['mua1']['costume_info']}
         self.assertEqual(sorted(mua1), ['0301', '0302', '0303'])
-        self.assertEqual(mua1['0303']['label'], 'Classic yellow/blue')
+        self.assertEqual(mua1['0303']['label'], 'Astonishing')               # MUA1's own herostat name
+        self.assertEqual(mua1['0303']['description'], 'Classic yellow/blue')
+        self.assertEqual(mua1['0301']['label'], 'Modern')
         self.assertEqual(mua1['0303']['author'], '')
         self.assertIn('your own copy', mua1['0303']['credit'])
         comm = {c['id']: c for c in w['community']['costume_info']}

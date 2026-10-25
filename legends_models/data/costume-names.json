@@ -1,0 +1,141 @@
+{
+  "comment": "Costume names from each game's own data; made by tools/derive_costume_names.py",
+  "names": {
+    "mua1": {
+      "0301": {
+        "character": "Wolverine",
+        "kind": "hero",
+        "name": "Modern"
+      },
+      "0302": {
+        "character": "Wolverine",
+        "kind": "hero",
+        "name": "Classic"
+      },
+      "0303": {
+        "character": "Wolverine",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0401": {
+        "character": "Storm",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0801": {
+        "character": "Iceman",
+        "kind": "hero",
+        "name": "Classic"
+      },
+      "12301": {
+        "character": "Jean Grey",
+        "kind": "npc",
+        "name": "Jean Grey"
+      },
+      "3005": {
+        "character": "Dark Psylocke",
+        "kind": "npc",
+        "name": "Dark Psylocke"
+      },
+      "4701": {
+        "character": "Nightcrawler",
+        "kind": "npc",
+        "name": "Nightcrawler"
+      },
+      "7801": {
+        "character": "Colossus",
+        "kind": "hero",
+        "name": "Ultimate"
+      }
+    },
+    "mua2": {
+      "0301": {
+        "character": "Wolverine",
+        "kind": "hero",
+        "name": "Modern"
+      },
+      "0601": {
+        "character": "Gambit",
+        "kind": "hero",
+        "name": "Classic"
+      }
+    },
+    "xml2": {
+      "0101": {
+        "character": "Cyclops",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0201": {
+        "character": "Jean Grey",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0301": {
+        "character": "Wolverine",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0401": {
+        "character": "Storm",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0501": {
+        "character": "Beast",
+        "kind": "npc",
+        "name": "Beast"
+      },
+      "0601": {
+        "character": "Nightcrawler",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0603": {
+        "character": "Nightcrawler",
+        "kind": "hero",
+        "name": "Legends II default"
+      },
+      "0701": {
+        "character": "Rogue",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "0703": {
+        "character": "Rogue",
+        "kind": "hero",
+        "name": "Legends II default"
+      },
+      "0801": {
+        "character": "Iceman",
+        "kind": "hero",
+        "name": "Legends II default"
+      },
+      "0901": {
+        "character": "Colossus",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "1104": {
+        "character": "Professor X",
+        "kind": "hero",
+        "name": "Astonishing"
+      },
+      "1301": {
+        "character": "Gambit",
+        "kind": "hero",
+        "name": "Legends II default"
+      },
+      "9001": {
+        "character": "Emma Frost",
+        "kind": "npc",
+        "name": "Emma Frost"
+      }
+    }
+  },
+  "sources": {
+    "mua1": "MUA1 data/herostat.engb (heroes), data/npcstat.engb (story NPCs)",
+    "mua2": "MUA2 data/stats/heroes/*.xmlb, data/stats/npcs/*.xmlb",
+    "xml2": "X-Men Legends II Data/herostat.engb, Data/npcstat.engb"
+  }
+}

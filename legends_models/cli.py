@@ -88,6 +88,8 @@ def cmd_scan(args, rep):
     from . import costumes as costumesmod
     from .workspace import port_work_path
     pwork = port_work_path(args.work, inst['port'].path) if inst['port'].path else None
+    from . import costume_names
+    names = costume_names.from_installs(inst)
     heroes = {}
     for h in _heroes(args):
         tiers = {}
@@ -98,7 +100,7 @@ def cmd_scan(args, rep):
             if r:
                 entry.update(source=r.source, status=r.status, note=r.note, costumes=sorted(set(r.alternatives) | {r.source}) if r.source else [])
                 entry['author'] = costumesmod.tier_author(t)
-                entry['costume_info'] = costumesmod.info(h, t, entry['costumes'], pwork)
+                entry['costume_info'] = costumesmod.info(h, t, entry['costumes'], pwork, names=names)
             if t == 'community' and r:
                 entry['cached'] = {c: cache.get((community.KEY_TO_NAME[h.key], c), False) for c in entry['costumes']}
             tiers[t] = entry
