@@ -1,0 +1,12 @@
+# Freezing legends-models.exe (tools/freeze.py; PyInstaller one folder). CPython 3.12 x64 - the Python the release
+# ships and CI tests on. Every package the freeze installs is pinned, the transitive ones too.
+numpy==1.26.4
+scipy==1.16.2
+pillow==11.3.0
+pyinstaller==6.16.0
+pyinstaller-hooks-contrib==2025.9
+altgraph==0.17.4
+packaging==24.2
+setuptools==80.9.0
+pefile==2023.2.7; sys_platform == "win32"
+pywin32-ctypes==0.2.3; sys_platform == "win32"

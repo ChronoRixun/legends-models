@@ -1,0 +1,87 @@
+[
+ {
+  "file": "mua1/round1_converter.py",
+  "old": "TEMPLATE = Path(\"<research PC: a Legends Classic build>/Actors/14301.IGB\")",
+  "new": "TEMPLATE = Path(os.environ.get(\"LEGENDS_PORT\", \".\"), \"Actors/14301.IGB\")  # legends-models: was a research-PC path"
+ },
+ {
+  "file": "community/round2/round1_converter.py",
+  "old": "TEMPLATE = Path(\"<research PC: a Legends Classic build>/Actors/14301.IGB\")",
+  "new": "TEMPLATE = Path(os.environ.get(\"LEGENDS_PORT\", \".\"), \"Actors/14301.IGB\")  # legends-models: was a research-PC path"
+ },
+ {
+  "file": "mua2/convert_mua2.py",
+  "old": "PORT=Path('<research PC: a Legends Classic build>')",
+  "new": "PORT=Path(os.environ['LEGENDS_PORT'])  # legends-models: was a research-PC path"
+ },
+ {
+  "file": "mua2/convert_mua2.py",
+  "old": "GAME=Path('<research PC: the MUA2 install>')",
+  "new": "GAME=Path(os.environ['LEGENDS_MUA2'])  # legends-models: was a research-PC path"
+ },
+ {
+  "file": "mua2/convert_mua2.py",
+  "old": "import argparse,hashlib,io,json,struct",
+  "new": "import argparse,hashlib,io,json,struct,os"
+ },
+ {
+  "file": "mua2/validate.py",
+  "old": "old=Model('<research PC: round-1 prototype folder>/14301.IGB')",
+  "new": "old=Model(os.environ['LEGENDS_ROUND1_PROTOTYPE'])  # legends-models: research-only standalone entry point"
+ },
+ {
+  "file": "mua2/validate_mua2.py",
+  "old": "if character=='wolverine':mods['accepted_mua1']=Model('<research PC: MUA1 evidence folder>/seam-safe.IGB')",
+  "new": "if character=='wolverine' and os.environ.get('LEGENDS_MUA1_REFERENCE'):mods['accepted_mua1']=Model(os.environ['LEGENDS_MUA1_REFERENCE'])  # legends-models: optional cross-check"
+ },
+ {
+  "file": "mua2/validate_mua2.py",
+  "old": "import argparse,json,hashlib,copy",
+  "new": "import argparse,json,hashlib,copy,os"
+ },
+ {
+  "file": "community/community_convert.py",
+  "old": "port=Path(r'<research PC: a Legends Classic build>')",
+  "new": "port=Path(os.environ['LEGENDS_PORT'])"
+ },
+ {
+  "file": "community/community_convert.py",
+  "old": "import sys,json,struct,io,hashlib,argparse",
+  "new": "import sys,json,struct,io,hashlib,argparse,os"
+ },
+ {
+  "file": "community/fit_chain.py",
+  "old": "port=Path('<research PC: a Legends Classic build>')",
+  "new": "port=Path(__import__('os').environ['LEGENDS_PORT'])"
+ },
+ {
+  "file": "community/refine_candidates.py",
+  "old": "port=Path('<research PC: a Legends Classic build>')",
+  "new": "port=Path(os.environ['LEGENDS_PORT'])"
+ },
+ {
+  "file": "community/repair_jubilee.py",
+  "old": "port=Path('<research PC: a Legends Classic build>')",
+  "new": "port=Path(__import__('os').environ['LEGENDS_PORT'])"
+ },
+ {
+  "file": "community/repair_magma.py",
+  "old": "port=Path('<research PC: a Legends Classic build>')",
+  "new": "port=Path(__import__('os').environ['LEGENDS_PORT'])"
+ },
+ {
+  "file": "mua1/round1_converter.py",
+  "old": "from pathlib import Path",
+  "new": "import os\nfrom pathlib import Path"
+ },
+ {
+  "file": "community/round2/round1_converter.py",
+  "old": "from pathlib import Path",
+  "new": "import os\nfrom pathlib import Path"
+ },
+ {
+  "file": "mua2/validate.py",
+  "old": "import argparse,json",
+  "new": "import argparse,json,os"
+ }
+]

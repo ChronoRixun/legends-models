@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legends-models"
+version = "0.3.0"
+description = "Optional character-model mods for Legends Classic, built on the player's PC from games they own"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+convert = ["numpy>=1.26", "scipy>=1.11", "pillow>=10"]
+ai = ["onnxruntime>=1.17"]
+
+[project.scripts]
+legends-models = "legends_models.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["legends_models*"]
+
+[tool.setuptools.package-data]
+legends_models = ["data/*.json", "data/*.md", "engines/vendor/**/*.py", "engines/vendor/**/*.md", "engines/vendor/*.json", "engines/drivers/*.py"]

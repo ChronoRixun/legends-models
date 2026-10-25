@@ -1,0 +1,27 @@
+{
+ "note": "Owner-accepted outputs under the FULL gate (numeric + offline renders + in-game close-ups + on/off). Keyed by exact output bytes; any other output is reported as numeric-only until re-reviewed.",
+ "records": [
+  {
+   "tier": "mua1",
+   "hero": "wolverine",
+   "source": "0301",
+   "source_sha256": "8b7ce520a52164aa000a6a81fdfd1815c2acbdf4d05e62c3651287b572f9aeab",
+   "template_sha256": "e71f29e0a9fdd0318e42ffa710546ef4ae839980719e4bfc2621c93307f850ca",
+   "output_sha256": "2b2df03984fbf6c7857b93ec2298d8920730e27396c9bb70f62a3f48fd91fad5",
+   "accepted": "2026-10-23",
+   "by": "owner",
+   "evidence": "mua-models2 REPORT.md (seam-safe 0301)"
+  },
+  {
+   "tier": "mua2",
+   "hero": "wolverine",
+   "source": "0301",
+   "source_sha256": "bb99b0f8f08b91435ea2aeb26bfd28816a86a7a1f94143142585b0d9c36ee2e1",
+   "template_sha256": "e71f29e0a9fdd0318e42ffa710546ef4ae839980719e4bfc2621c93307f850ca",
+   "output_sha256": "d066435e4cc3d5c38ab9de7be57d6d83e68ddbc65e6051db2f21dfe8a5ca7472",
+   "accepted": "2026-10-24",
+   "by": "full gate record (mua2-models)",
+   "evidence": "mua2-models REPORT.md"
+  }
+ ]
+}

@@ -1,0 +1,31 @@
+# The tests that need no game data: the synthetic unit tests (IGB / IGZ / MUA .bin readers on made-up containers, the
+# gate, packs and load order, the CLI and launcher API with fake converters, the vendored converters' provenance) and
+# the release policy. Everything that needs the games runs on the developer's PC, never on a CI runner.
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"        # the Python legends-models.exe is frozen with (requirements-freeze.txt)
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements-freeze.txt
+
+      - name: Install the pinned dependencies
+        run: python -m pip install -r requirements-freeze.txt
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t tests -v

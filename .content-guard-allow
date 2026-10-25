@@ -1,0 +1,17 @@
+# Allowlist for tools/check_no_game_content.py.
+# Format:  RULE  GLOB  # reason (required)
+# Every entry is a deliberate exception that someone reviewed. Keep it short; `--all` warns about entries that
+# match nothing.
+
+# --- NumPy matrix products (the @ operator between names, e.g. H.T times gd.reshape) in the vendored converters
+#     read like e-mail addresses; `*` also crosses `/`, so community/round2 is covered too
+EMAIL  legends_models/engines/vendor/*/fit_weights.py             # matrix products, not addresses
+EMAIL  legends_models/engines/vendor/*/validate.py                # matrix products, not addresses
+EMAIL  legends_models/engines/vendor/mua2/mua2_model.py           # matrix products, not addresses
+EMAIL  legends_models/engines/vendor/mua2/refine_bind.py          # matrix products, not addresses
+EMAIL  legends_models/engines/vendor/xml2/attachments.py          # matrix products, not addresses
+
+# --- our own prose
+GAME_TEXT_ATTR  pyproject.toml                                    # the package description (description = "...")
+
+# --- nothing else is expected. In particular: no MEDIA entries (no screenshots in git), no SIZE entries.

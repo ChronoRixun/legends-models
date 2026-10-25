@@ -1,0 +1,112 @@
+# Freeze legends-models.exe: compile the animation sampler (sample_enbaya.exe) with MSVC, run the unit tests on the
+# freezing Python, freeze with PyInstaller (one folder, no UPX), zip it with the launcher's release manifest
+# (legends-models.json) and SHA256SUMS.txt, and smoke-test the result - the frozen folder and the unpacked zip - on
+# synthetic installs (no game data). Every run uploads the zip + manifest as an artifact; a v* tag also publishes them
+# as a GitHub release: vX.Y.Z as the latest release, vX.Y.Z-beta.N / vX.Y.Z-rc.N as a pre-release that is never
+# marked latest (tools/release_metadata.py).
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    runs-on: windows-latest
+    env:
+      # Only set for tags: the full tag version goes into build-info, the exe, the zip name and the manifest.
+      LM_RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements-freeze.txt
+
+      - name: Install the freeze toolchain (pinned)
+        run: python -m pip install -r requirements-freeze.txt
+
+      - name: Tag matches the tool version
+        if: github.ref_type == 'tag'
+        run: python tools/freeze.py --check-tag "${{ github.ref_name }}"
+
+      - name: Unit tests (on the freezing Python)
+        run: python -m unittest discover -s tests -t tests
+
+      - name: Animation sampler (MSVC x86)
+        shell: cmd
+        run: |
+          call tools\build_sampler.cmd
+          if errorlevel 1 exit /b 1
+          if not exist tools\sample_enbaya.exe exit /b 1
+
+      - name: Freeze, zip, manifest, smoke tests
+        run: python tools/freeze.py --sampler tools/sample_enbaya.exe --smoke
+
+      - name: Smoke tests on the unpacked zip (what the launcher installs)
+        shell: pwsh
+        run: |
+          $manifest = Get-Content dist/legends-models.json -Raw | ConvertFrom-Json
+          $dest = Join-Path $env:RUNNER_TEMP 'legends-models-unzipped'
+          New-Item -ItemType Directory $dest -Force | Out-Null
+          & "$env:SystemRoot\System32\tar.exe" -xf (Join-Path dist $manifest.zip) -C $dest   # the launcher unpacks with Windows' tar.exe
+          if ($LASTEXITCODE) { throw "tar failed ($LASTEXITCODE)" }
+          python tools/freeze_smoke.py $dest --version $manifest.version --sampler
+          if ($LASTEXITCODE) { throw "smoke tests failed on the unpacked zip" }
+          python tools/verify_dist.py dist --version $manifest.version --sampler
+          if ($LASTEXITCODE) { throw "the release files do not match" }
+          Get-Content dist/legends-models.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: legends-models
+          path: |
+            dist/legends-models-*-win64.zip
+            dist/legends-models.json
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: freeze
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write           # only this job can create the release
+    steps:
+      - uses: actions/checkout@v7            # CHANGELOG.md + the tag policy for the notes
+        with:
+          sparse-checkout: |
+            /CHANGELOG.md
+            /tools/release_metadata.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: legends-models
+          path: dist
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 tools/release_metadata.py --tag "$TAG" --notes-output notes.md > release.json
+          mapfile -t release_flags < <(jq -r '.flags[]' release.json)
+          # a release made on the GitHub page for this tag gets the assets added and its notes replaced
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/legends-models-*-win64.zip dist/legends-models.json dist/SHA256SUMS.txt \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "legends-models $TAG" --notes-file notes.md "${release_flags[@]}"
+          else
+            gh release create "$TAG" dist/legends-models-*-win64.zip dist/legends-models.json dist/SHA256SUMS.txt \
+              --repo "$GITHUB_REPOSITORY" --title "legends-models $TAG" --notes-file notes.md "${release_flags[@]}"
+          fi

@@ -1,0 +1,16 @@
+# The content guard on every commit: pip install pre-commit && pre-commit install
+# Without the pre-commit framework, a plain hook does the same - .git/hooks/pre-commit:
+#     #!/bin/sh
+#     exec python tools/check_no_game_content.py --staged
+# Personal patterns (your name, host name, LAN prefix, drive layout) go in .git/info/content-guard-deny, one regex
+# per line - that file is local and never committed.
+repos:
+  - repo: local
+    hooks:
+      - id: no-game-content
+        name: no game content / personal data / big binaries
+        entry: python tools/check_no_game_content.py --staged
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
