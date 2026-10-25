@@ -8,6 +8,12 @@ notes come from the `## vX.Y.Z` section below; a pre-release needs it).
 
 The first public release (a pre-release first: `v0.3.0-beta.1`).
 
+### Changed (beta 2)
+- Player-facing status wording: each tier now says "not in MUA2" / "not in MUA1" (that game has no model of the
+  character) or "not converted yet", instead of "no recipe"; available tiers read "MUA1 model", "Community model" and
+  so on. Developer notes no longer reach the launcher (they stay on `--verbose`). MUA1/MUA2 presence is recorded from
+  the installed games' own skin lists.
+
 ### Added
 - One command-line tool over the four character-model converters (MUA2, MUA1, XML2 look, sharpened textures) and
   the community-skin pipeline (BaconWizard17's XML2 skins, downloaded from the author's own links, hash-checked,
