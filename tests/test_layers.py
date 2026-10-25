@@ -200,5 +200,22 @@ class Loose(unittest.TestCase):
         self.assertGreater(dist[0], 8.0)
 
 
+
+class CoatOneLeg(unittest.TestCase):
+    def test_far_leg_weight_moves_to_the_mirrored_bone(self):
+        names = ['Bip01 Pelvis', 'Bip01 L Thigh', 'Bip01 L Calf', 'Bip01 R Thigh', 'Bip01 R Calf']
+        idx = np.array([[1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]])
+        w = np.array([[.4, .3, .2, .1], [.4, .3, .2, .1], [.4, .3, .2, .1]])
+        coat = np.array([True, True, False])
+        left = np.array([True, False, True])
+        nw, ni, rep = L.coat_one_leg(names, coat, left, w, idx)
+        dense = L.to_dense(ni, nw, len(names))
+        np.testing.assert_allclose(dense[0], [0, .6, .4, 0, 0])      # L side: all on the L leg
+        np.testing.assert_allclose(dense[1], [0, 0, 0, .6, .4])      # R side: all on the R leg
+        np.testing.assert_allclose(dense[2], [0, .4, .3, .2, .1])    # not coat: unchanged
+        self.assertEqual(rep['rows_changed'], 2)
+        self.assertAlmostEqual(rep['weight_moved'], 1.0)
+
+
 if __name__ == '__main__':
     unittest.main()

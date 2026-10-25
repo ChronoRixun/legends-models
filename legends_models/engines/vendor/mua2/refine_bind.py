@@ -13,7 +13,13 @@ from model import Model,pose
 from validate import edges,chain_distance
 from convert_mua2 import ROOT,PORT,Source,atlas,resolve,GAME,write_candidate
 
-def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_regularize=False,reset_bind=False,seed_weights=None,layer_lock=False,couple_layers=False,layer_weight=None):
+def coat_side(target,coat,pos,weights,indices):
+    """layers.coat_one_leg on the port palette (the port's L leg is +y)."""
+    from layers import coat_one_leg
+    bm={b.get(4):i for i,b in enumerate(target.bones) if b.get(4)>=0}
+    return coat_one_leg([target.names[bm[i]] for i in target.palette],coat,pos[:,1]>=0,weights,indices)
+
+def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_regularize=False,reset_bind=False,seed_weights=None,layer_lock=False,couple_layers=False,layer_weight=None,coat_one_leg=False):
     out=ROOT/'evidence'/char;manifest=json.loads((out/'conversion.json').read_text());target=Model(manifest['template']);current=Model(manifest['candidate'])
     source=Source(manifest['source'],target);old=dict(np.load(out/'fit/fit.npz'))
     if seed_weights:
@@ -25,6 +31,14 @@ def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_r
     n=len(rep);p0=old['pos'][rep].astype(float);hn=old['outline_norm'][rep].astype(float)
     indices=old['indices'][rep];weights=old['weights'][rep]
     layer_pairs=[];motion_group=np.arange(n);motion_count=np.ones(n)
+    one_leg=None
+    if coat_one_leg:
+        # Coat rows follow ONE leg, as the port's own XML1 Gambit coat does (no stock vertex is weighted to both
+        # legs): the coat-surface transfer blends the nearest stock vertices, which straddle the legs at a panel's
+        # centre, and a row blended across both legs ends up between them, away from every segment of its own
+        # bones, when the legs separate (the chain distance over stock). Side = sign of the bind's lateral axis
+        # (the port's L leg is +y); the other leg's weight moves to the mirrored bone of this leg.
+        weights,indices,one_leg=coat_side(target,source.coat_mask[rep],p0,weights,indices)
     if layer_lock:
         from scipy.spatial import cKDTree
         candidates=np.array(sorted(cKDTree(source.pos).query_pairs(.85)),dtype=int).reshape(-1,2)
@@ -240,7 +254,7 @@ def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_r
             'maximum_bind_displacement':float(np.linalg.norm(p-base,axis=1).max()),'rms_bind_displacement':float(np.sqrt(((p-base)**2).sum(1).mean())),
             'maximum_incremental_displacement':float(np.linalg.norm(p-p0,axis=1).max()),'all_frames':samples<=0,'joint_weights':joint_weights,'surface_regularize':surface_regularize,'reset_bind':reset_bind,'seed_weights':str(seed_weights) if seed_weights else None,
             'layer_lock':layer_lock,'paired_inner_outer_groups':len(layer_pairs),'motion_groups':len(motion_count),
-            'couple_layers':couple_layers,'coupled_inner_rows':0 if plan is None else int(len(plan['rows'])),'layer_repair':repair}
+            'couple_layers':couple_layers,'coupled_inner_rows':0 if plan is None else int(len(plan['rows'])),'layer_repair':repair,'coat_one_leg':one_leg}
     np.savez(out/'fit/fit.npz',**old);(out/'bind-refinement.json').write_text(json.dumps(report,indent=2))
     textures=resolve(source.path,GAME,out/'textures');image,atlas_report=atlas(source,textures,out);write_candidate(source,target,Path(manifest['candidate']),old,image)
     import hashlib
@@ -250,4 +264,4 @@ def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_r
     print(json.dumps(report,indent=2))
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--character',required=True,choices=['gambit','wolverine']);ap.add_argument('--iterations',type=int,default=120);ap.add_argument('--samples',type=int,default=24);ap.add_argument('--bound',type=float,default=2.);ap.add_argument('--joint-weights',action='store_true');ap.add_argument('--surface-regularize',action='store_true');ap.add_argument('--reset-bind',action='store_true');ap.add_argument('--seed-weights',type=Path);ap.add_argument('--layer-lock',action='store_true');ap.add_argument('--couple-layers',action='store_true',help='tie inner cloth shells to their outer shell (layers.py)');ap.add_argument('--layer-weight',type=float,help='offset-preserving constraint weight (0: tie only; a second pass can add it)');a=ap.parse_args();refine(a.character,a.iterations,a.samples,a.bound,a.joint_weights,a.surface_regularize,a.reset_bind,a.seed_weights,a.layer_lock,a.couple_layers,a.layer_weight)
+    ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--character',required=True,choices=['gambit','wolverine']);ap.add_argument('--iterations',type=int,default=120);ap.add_argument('--samples',type=int,default=24);ap.add_argument('--bound',type=float,default=2.);ap.add_argument('--joint-weights',action='store_true');ap.add_argument('--surface-regularize',action='store_true');ap.add_argument('--reset-bind',action='store_true');ap.add_argument('--seed-weights',type=Path);ap.add_argument('--layer-lock',action='store_true');ap.add_argument('--couple-layers',action='store_true',help='tie inner cloth shells to their outer shell (layers.py)');ap.add_argument('--layer-weight',type=float,help='offset-preserving constraint weight (0: tie only; a second pass can add it)');ap.add_argument('--coat-one-leg',action='store_true',help='coat rows follow one leg (the side they hang on), as the stock coat does');a=ap.parse_args();refine(a.character,a.iterations,a.samples,a.bound,a.joint_weights,a.surface_regularize,a.reset_bind,a.seed_weights,a.layer_lock,a.couple_layers,a.layer_weight,a.coat_one_leg)

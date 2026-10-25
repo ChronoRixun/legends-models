@@ -560,3 +560,40 @@ def place_inner_shells(pos, src_pos, layers, n):
         new = np.einsum('kj,kji->ki', b, D) + np.einsum('kij,kj->ki', dst_frame, coeff)
         pos[r[ok]] = new[ok]; moved += int(ok.sum())
     return pos, moved
+
+
+# --------------------------------------------------------------------------------- one-leg coat rule
+LEG_PARTS = (' Thigh', ' Calf', ' Foot', ' Toe0')
+
+
+def coat_one_leg(slot_names, coat, left, weights, indices):
+    """Coat rows follow ONE leg, as the port's own XML1 Gambit coat does (no stock vertex is weighted >0.05 to
+    both legs). A coat-surface weight transfer blends the nearest stock vertices, which straddle the legs at a
+    panel's centre; a row blended across both legs lands between them, away from every segment of its own
+    bones, when the legs separate (the chain distance over stock). For coat rows the far leg's weight moves to
+    the mirrored bone of the near leg (`left`: row hangs on the L side), then the top lanes are kept.
+
+    slot_names: bone name per palette slot; indices: palette slots per lane. Returns (weights, indices, report).
+    """
+    slot = {nm: k for k, nm in enumerate(slot_names)}
+    mirror = {}
+    for k, nm in enumerate(slot_names):
+        for a, b in ((' L ', ' R '), (' R ', ' L ')):
+            if a in nm and nm.endswith(LEG_PARTS) and nm.replace(a, b) in slot:
+                mirror[k] = (a.strip(), slot[nm.replace(a, b)])
+    weights = np.asarray(weights, float); indices = np.asarray(indices)
+    n, P = len(weights), len(slot_names)
+    dense = to_dense(indices, weights, P)
+    coat = np.asarray(coat, bool); left = np.asarray(left, bool)
+    moved, rows = 0.0, set()
+    for k, (side, other) in mirror.items():
+        far = coat & ((left & (side == 'R')) | (~left & (side == 'L'))) & (dense[:, k] > 0)
+        if far.any():
+            moved += float(dense[far, k].sum()); rows.update(np.flatnonzero(far).tolist())
+            dense[far, other] += dense[far, k]; dense[far, k] = 0
+    lanes = indices.shape[1]
+    ix = np.argsort(dense, axis=1)[:, -lanes:][:, ::-1].copy()
+    w = np.maximum(np.take_along_axis(dense, ix, axis=1), 0)
+    w[w.sum(1) <= 0, 0] = 1
+    w /= w.sum(1, keepdims=True)
+    return w, ix.astype(indices.dtype), dict(coat_rows=int(coat.sum()), rows_changed=len(rows), weight_moved=moved)
