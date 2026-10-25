@@ -71,7 +71,7 @@ HEROES = [
        R('community', 'Ultimate XML1', 'numeric', 'chain-refined safe candidate', ('Hellfire Club', 'Ultimate XML1'),
          ('chain_refine',))),
     _h('gambit', 'Gambit', '15301', 'x1_13_gambit',
-       R('mua2', '0601', 'failed', 'coat lining crosses the outer coat; with shells coupled the refine has not yet reached stock stretch/chain AND zero layer crossings (models-cloth REPORT)'),
+       R('mua2', '0601', 'failed', 'coat lining crosses the outer coat; with shells coupled the refine has not yet reached stock stretch/chain AND zero layer crossings: the chain excess is coat-panel rows weighted across both legs, which stock Gambit never does (models-cloth, models-fixes REPORTs)'),
        R('xml2', '1301', 'numeric', 'mesh-only 0.998 scale'),
        R('community', 'Ultimate XML1', 'numeric', 'safe candidate', ('Original', 'Ultimate XML1'))),
     _h('iceman', 'Iceman', '14801', 'x1_08_iceman',

@@ -15,8 +15,9 @@ then the default costume, then variant 01 (XMen2.exe 0x5f4ec0), so a pack replac
 alternate costumes keep their stock heads. The select portrait is per character (variant 01): skin[:-2] + '01',
 which is also right for Professor X (astral skin 15104, portrait 15101).
 
-Sources: the community pack ships all three roles (BaconWizard17's files are used as they are, only renamed
-to the port's paths); MUA1 supplies the conversation portrait and the select portrait as a texture swap into
+Sources: the community pack ships all three roles (BaconWizard17's files, renamed to the port's paths; the
+select portrait is fitted to the port's layout - the author's image in the port's own 64 px framed portrait
+scene - and a 3D head with a mane behind the ears is pulled in, see community_fit); MUA1 supplies the conversation portrait and the select portrait as a texture swap into
 the port's own scene (mesh and UVs byte-identical); MUA1's 3D HUD head is a different mesh (UV atlas) and
 MUA2 keeps its portraits in a UI atlas, so those roles stay stock.
 """
@@ -33,6 +34,10 @@ from .errors import MISSING_INPUT, ToolError
 
 MAGIC = 0xFADA
 ROLES = ('hud', 'hud3d', 'select')
+# Community 3D HUD heads whose back hair reads as a flap beside the face when the HUD turns the head:
+# vertices behind y = depth_start (the head faces -y) move toward that plane by depth_factor
+# (drivers/heads_community_fit.py; Beast: models-fixes renders/heads/beast-flat03-yaw.png).
+HUD3D_FIT = {'beast': dict(depth_start=-6.0, depth_factor=0.3)}
 
 
 def portrait_id(hero):
@@ -145,6 +150,43 @@ def community_routes(folder, hero, near=None, out_dir=None):
     return routes, notes
 
 
+def community_fit(hero, routes, ctx, out_dir, log=None):
+    """Fit the community select portrait (and listed 3D heads) to the port's layout. Returns (routes, notes);
+    a role whose fit fails keeps the author's file and says so."""
+    import json
+    paths = port_paths(hero)
+    sel, h3d = paths['select'], paths['hud3d']
+    stock = Path(ctx.port) / sel if ctx.port else None
+    args, wants = [], []
+    if sel in routes and stock is not None and stock.is_file():
+        args += ['--select', routes[sel], '--select-stock', stock, '--select-out', Path(out_dir) / 'fit' / sel]
+        wants.append('select')
+    fit = HUD3D_FIT.get(hero.key)
+    if fit and h3d in routes:
+        args += ['--hud3d', routes[h3d], '--hud3d-out', Path(out_dir) / 'fit' / h3d,
+                 '--depth-start', fit['depth_start'], '--depth-factor', fit['depth_factor']]
+        wants.append('hud3d')
+    if not wants:
+        return routes, []
+    root = materialise('xml2', ctx.work, needs_sampler=False)
+    report = Path(out_dir) / 'fit' / 'fit.json'
+    log = log or root / 'logs' / f'heads-community-{hero.key}.log'
+    code = run('xml2', root, 'heads_community_fit.py', [*args, '--report', report], ctx.env, log, ctx.report, driver=True)
+    info = json.loads(report.read_text()) if report.is_file() else {}
+    routes, notes = dict(routes), []
+    for role, rel in (('select', sel), ('hud3d', h3d)):
+        if role not in wants:
+            continue
+        row = info.get(role) or dict(status='failed', reason=f'driver exit {code}')
+        if row['status'] == 'fitted':
+            routes[rel] = Path(row['file'])
+            notes.append(f'{role}: fitted to the port layout' if role == 'select' else
+                         f'{role}: back hair pulled in ({row["moved_vertices"]} vertices)')
+        else:
+            notes.append(f'{role}: fit failed ({row.get("reason")}); the author\'s file kept')
+    return routes, notes
+
+
 def mua1_routes(hero, choice, ctx, out_dir, log=None):
     """Texture-swap MUA1's conversation and select portraits into the port's own scenes (driver heads_mua1.py)."""
     if ctx.mua1 is None:
@@ -183,7 +225,9 @@ def collect(hero, choice, ctx):
             out = ctx.work / 'heads' / f'community-{hero.key}'
             if out.exists():
                 shutil.rmtree(out)
-            return community_routes(folder, hero, community.skin_file(folder, ctx.cel), out)
+            routes, notes = community_routes(folder, hero, community.skin_file(folder, ctx.cel), out)
+            routes, more = community_fit(hero, routes, ctx, out)
+            return routes, notes + more
         if choice.tier == 'mua1':
             return mua1_routes(hero, choice, ctx, ctx.work / 'heads' / f'mua1-{hero.key}-{choice.source}')
     except ToolError as e:
