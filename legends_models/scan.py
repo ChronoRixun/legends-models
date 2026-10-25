@@ -181,26 +181,24 @@ def helpers(work):
 def availability(inst, tier, hero, recipe, source=None):
     """(ok, reason) for one hero/tier (and costume `source`, default the recipe's) given the scanned installs."""
     source = source if source is not None else (recipe.source if recipe else None)
-    if recipe is None:
-        return False, 'no recipe'
-    if recipe.status == 'none':
-        return False, recipe.note or 'no model in that game'
+    if recipe is None or recipe.status not in roster.USABLE:
+        return False, roster.unavailable_reason(hero, tier)
     port = inst['port']
     if not port.found:
         return False, 'port not found'
     if tier == 'sharpen':
-        return True, 'port textures'
+        return True, recipe.player_line
     if tier == 'xml2':
         ok = source.lower() in port.actors
-        return ok, f'XML2 actor {source} in the port' if ok else f'XML2 actor {source} missing from the port'
+        return ok, recipe.player_line if ok else 'Selected XML2 model is missing from the port'
     if tier in ('mua1', 'mua2'):
         g = inst[tier]
         if not g.found:
             return False, (g.problems[0] if g.problems else f'{tier} not found')
         ok = source.lower() in g.actors
-        return ok, f'{tier} {g.flavour} actor {source}' if ok else f'actor {source} not in {tier} install'
+        return ok, recipe.player_line if ok else f'Selected {tier.upper()} costume is missing from your game'
     if tier == 'community':
-        return True, f"community {source} (fetched on build from the author's link)"
+        return True, recipe.player_line
     return False, 'unknown tier'
 
 

@@ -98,11 +98,8 @@ def make_plan(mode, available, heroes=None, costumes=None, strict=False, skip=()
                 row.skipped.append((tier, 'skipped (--skip-tier)'))
                 continue
             r = h.recipe(tier)
-            if r is None:
-                row.skipped.append((tier, 'no recipe'))
-                continue
-            if r.status not in roster.USABLE:
-                row.skipped.append((tier, f'{r.status}: {r.note}'))
+            if r is None or r.status not in roster.USABLE:
+                row.skipped.append((tier, roster.unavailable_reason(h, tier)))
                 continue
             source = costume_for(h, r, costumes)
             if source is None:

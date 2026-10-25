@@ -124,6 +124,19 @@ Results:
 
 Human-readable output (no `--json`) is for people; parse only `--json`.
 
+### Player status wording (API 1, schema unchanged)
+
+`scan` tier `note` contains the recipe's short player-facing line, never its technical research note.
+Tier `reason` and plan `skipped[].reason` use the same player line for an unavailable conversion.
+An absent character model is reported as `not in MUA1` / `not in MUA2`; a character present in
+that installed PC edition whose conversion is not implemented is `not converted yet`.
+Presence includes story models (MUA1 Dark Cyclops and chair Professor X); it does not imply
+that a matching playable or astral conversion exists. Gambit's failed MUA2 conversion reports
+`MUA2 conversion not ready: the coat lining shows through the coat` and `available: false`.
+Usable recipes say `MUA2 conversion ready`, `<MUA1/XML2/Community> model`,
+or `Original model with sharper textures`. Existing status codes and JSON field shapes are unchanged;
+no API bump is required. `--verbose` writes technical recipe notes only to stderr, even with `--json`.
+
 ## Behaviour the launcher can rely on
 
 - Source installs are only read. The pack is written only under `<port>\mods` (or `--game`), and

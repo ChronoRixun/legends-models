@@ -29,7 +29,7 @@ class Plan(unittest.TestCase):
         rows = plan.make_plan('upgraded', all_available)
         g = row(rows, 'gambit')          # MUA2 Gambit is a known visual failure
         self.assertEqual(g['tier'], 'community')
-        self.assertTrue(any(s['tier'] == 'mua2' and s['reason'].startswith('failed') for s in g['skipped']))
+        self.assertIn({'tier': 'mua2', 'reason': 'MUA2 conversion not ready: the coat lining shows through the coat'}, g['skipped'])
         j = row(rows, 'phoenix')         # MUA1 Jean: loose-geometry rule passes the chain gate (layers.py)
         self.assertEqual((j['tier'], j['source']), ('mua1', '12301'))
         p = row(rows, 'profxastral')     # only the community pack is usable
@@ -93,6 +93,29 @@ class Plan(unittest.TestCase):
 
 
 class Roster(unittest.TestCase):
+    def test_installed_game_presence(self):
+        self.assertEqual(set(roster.SOURCE_SKINS), set(roster.BY_KEY))
+        expected = {
+            'mua1': {'colossus', 'cyclops', 'iceman', 'nightcrawler', 'phoenix',
+                     'profxastral', 'psylocke', 'storm', 'wolverine'},
+            'mua2': {'colossus', 'gambit', 'iceman', 'phoenix', 'psylocke',
+                     'storm', 'wolverine', 'magneto', 'juggernaut'},
+        }
+        for tier, keys in expected.items():
+            self.assertEqual({key for key, tiers in roster.SOURCE_SKINS.items() if tiers[tier]}, keys)
+        self.assertEqual(roster.SOURCE_SKINS['cyclops']['mua1'], ('13101',))
+        self.assertEqual(roster.SOURCE_SKINS['profxastral']['mua1'], ('3901',))
+
+    def test_missing_conversions_use_presence_in_plans(self):
+        rows = plan.make_plan('upgraded', all_available)
+        for h in roster.HEROES:
+            skipped = {s['tier']: s['reason'] for s in row(rows, h.key)['skipped']}
+            for tier in ('mua1', 'mua2'):
+                r = h.recipe(tier)
+                if r is None or r.status == 'none':
+                    expected = 'not converted yet' if roster.SOURCE_SKINS[h.key][tier] else f'not in {tier.upper()}'
+                    self.assertEqual(skipped[tier], expected, (h.key, tier))
+
     def test_roster_is_consistent(self):
         self.assertEqual(len(roster.HEROES), 20)
         self.assertEqual(sum(h.villain for h in roster.HEROES), 5)
@@ -100,6 +123,9 @@ class Roster(unittest.TestCase):
         for h in roster.HEROES:
             self.assertIn('sharpen', h.recipes)
             for r in h.recipes.values():
+                self.assertTrue(r.player_line, (h.key, r.tier))
+                for word in ('chain', 'refine', 'gate', 'envelope', 'donor', 'report', '.py', 'models-'):
+                    self.assertNotIn(word, r.player_line.lower(), (h.key, r.tier))
                 self.assertIn(r.status, ('accepted', 'numeric', 'failed', 'none'))
                 self.assertTrue(set(r.accepted_sources) <= set(r.alternatives) | {r.source})
                 if r.status != 'none' and r.tier != 'sharpen':

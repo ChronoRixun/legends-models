@@ -53,6 +53,41 @@ class Fixture(unittest.TestCase):
 
 
 class Commands(Fixture):
+    def test_scan_player_text_and_failed_conversion(self):
+        code, ev = run_cli('scan', *self.base)
+        self.assertEqual(code, 0)
+        heroes = ev[-1]['heroes']
+        for h in roster.HEROES:
+            for tier, entry in heroes[h.key]['tiers'].items():
+                r = h.recipe(tier)
+                if r:
+                    self.assertEqual(entry['note'], r.player_line)
+                    if r.note != r.player_line:
+                        self.assertNotIn(r.note, json.dumps(entry))
+                if not r or r.status == 'none':
+                    expected = roster.unavailable_reason(h, tier)
+                    self.assertEqual(entry['reason'], expected)
+                    self.assertFalse(entry['available'])
+        gambit = heroes['gambit']['tiers']['mua2']
+        self.assertFalse(gambit['available'])   # installed model, but conversion has a known problem
+        self.assertEqual(gambit['reason'], 'MUA2 conversion not ready: the coat lining shows through the coat')
+        self.assertEqual(heroes['wolverine']['tiers']['mua2']['reason'], 'MUA2 conversion ready')
+
+    def test_verbose_notes_only_on_stderr(self):
+        import dataclasses
+        r = roster.hero('gambit').recipe('mua2')
+        # A sentinel proves JSON never leaks the developer field, even with --verbose.
+        modified = dataclasses.replace(r, note='PRIVATE_DEVELOPER_NOTE')
+        for command in ('scan', 'plan'):
+            stderr = io.StringIO()
+            args = ['--mode', 'upgraded'] if command == 'plan' else []
+            with mock.patch.dict(roster.hero('gambit').recipes, mua2=modified):
+                with contextlib.redirect_stderr(stderr):
+                    code, ev = run_cli(command, *args, *self.base, '--hero', 'gambit', '--verbose')
+            self.assertEqual(code, 0)
+            self.assertIn('PRIVATE_DEVELOPER_NOTE', stderr.getvalue())
+            self.assertNotIn('PRIVATE_DEVELOPER_NOTE', json.dumps(ev))
+
     def test_scan(self):
         code, ev = run_cli('scan', *self.base)
         self.assertEqual(code, 0)

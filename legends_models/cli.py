@@ -21,6 +21,7 @@ def default_work():
 def parser():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument('--json', action='store_true', help='one JSON object per line on stdout (launcher mode)')
+    common.add_argument('--verbose', action='store_true', help='write technical recipe notes to stderr (never JSON)')
     common.add_argument('--port', type=Path, help='Legends Classic install (has Actors\\, Data\\, libIGSg.dll)')
     common.add_argument('--mua1', type=Path, help='MUA1 install: 2016 Steam folder (actors.bin) or 2006 loose Data')
     common.add_argument('--mua2', type=Path, help='MUA2 install folder (actors.bin, materials.bin, textures.bin)')
@@ -98,7 +99,7 @@ def cmd_scan(args, rep):
             ok, why = scanmod.availability(inst, t, h, r)
             entry = dict(available=ok, reason=why)
             if r:
-                entry.update(source=r.source, status=r.status, note=r.note, costumes=sorted(set(r.alternatives) | {r.source}) if r.source else [])
+                entry.update(source=r.source, status=r.status, note=r.player_line, costumes=sorted(set(r.alternatives) | {r.source}) if r.source else [])
                 entry['author'] = costumesmod.tier_author(t)
                 entry['costume_info'] = costumesmod.info(h, t, entry['costumes'], pwork, names=names)
             if t == 'community' and r:
@@ -239,6 +240,11 @@ def main(argv=None):
     if args.python:
         os.environ['LEGENDS_MODELS_PYTHON'] = args.python
     try:
+        if args.verbose and args.command in ('scan', 'plan', 'build'):
+            for h in _heroes(args):
+                for r in h.recipes.values():
+                    if r.note:
+                        print(f'{h.name} / {r.tier}: {r.note}', file=sys.stderr)
         return COMMANDS[args.command](args, rep)
     except ToolError as e:
         rep.error(str(e), e.code, **e.data)
