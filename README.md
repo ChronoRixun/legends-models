@@ -7,7 +7,9 @@ Legends Classic is the free fan port of X-Men Legends (2004) onto the X-Men Lege
 first game's models. `legends-models` can give them newer looks:
 
 - **Community pack** (the suggested choice): BaconWizard17's XML2-style skins for the X-Men Legends heroes, made by
-  the author for the community and used here with his permission and credit. Needs no other game.
+  the author for the community and credited to him. Nothing of his is in this repository: each player downloads the
+  skins from his own marvelmods.com links (his posted terms allow use in projects with credit; his readme asks that
+  the files are not shared outside marvelmods.com or sold), and they are fitted on that player's PC. Needs no other game.
 - **Upgraded**: per hero, the best model that passes the checks below, from Marvel: Ultimate Alliance 2, then
   Marvel: Ultimate Alliance, then the Community pack - if you own those games and have them installed.
 - **XML2 look** (X-Men Legends II's own models) and **Sharpened classic** (the port's own textures upscaled, mesh
