@@ -1,15 +1,20 @@
 # SPDX-License-Identifier: MIT
 """BaconWizard17's community skins: fetch on the player's PC, quarantine, verify, extract.
 
-Nothing is bundled. The tool downloads from the author's own MediaFire links (the page's direct
-link is resolved locally), or from a mirror URL configured by whoever has the author's OK to host
-the archives (for the launcher later; the credit stays). Every archive must match the manifest's
-size and SHA-256 before it leaves quarantine, and its member list must equal the manifest's list
-and pass the path/extension allow-list before anything is extracted. Members are never executed.
+Nothing is bundled with the tool. It downloads from the author's own MediaFire links first (the
+page's direct link is resolved locally). Only if that fails (HTTP error, timeout, removed link,
+wrong size or SHA-256) does it try the backup mirror: unmodified copies of the same archives kept,
+with the author's permission (BaconWizard17, 2026-10-25), as files of a GitHub release of this
+repository (the manifest's "mirror" base URL; --mirror / LEGENDS_MODELS_MIRROR override it,
+--no-mirror or LEGENDS_MODELS_MIRROR=off switch it off). Every archive, from either source, must
+match the manifest's size and SHA-256 before it leaves quarantine, and its member list must equal
+the manifest's list and pass the path/extension allow-list before anything is extracted. Members
+are never executed.
 """
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -40,16 +45,30 @@ def manifest():
 
 
 MIRROR_ENV = 'LEGENDS_MODELS_MIRROR'
+MIRROR_OFF = frozenset({'off', 'none', 'no', '0', 'false', 'disabled'})
+# What the download event's source_label says (the launcher's Downloads tab shows where each archive came from).
+SOURCE_LABELS = {'author': "author's link", 'mirror': 'GitHub backup'}
 
 
-def resolve_mirror(arg=None, data=None):
-    """Mirror base URL, first that is set: --mirror, the LEGENDS_MODELS_MIRROR environment variable, the
-    manifest's own "mirror" entry (empty in this repository: set by whoever hosts the archives with the
-    author's OK, e.g. a release of a community-models repository). Empty -> author links only."""
-    for c in (arg, os.environ.get(MIRROR_ENV), (data or manifest()).get('mirror')):
+def resolve_mirror(arg=None, data=None, disabled=False):
+    """Backup mirror base URL, or None for author links only. disabled (--no-mirror) -> None. Otherwise the first
+    that is set: --mirror, the LEGENDS_MODELS_MIRROR environment variable, the manifest's own "mirror" entry (the
+    GitHub release holding unmodified copies, kept with the author's permission). Any of them set to "off" (or
+    none/no/0/false/disabled) switches the mirror off."""
+    if disabled:
+        return None
+    for c in (arg, os.environ.get(MIRROR_ENV), (manifest() if data is None else data).get('mirror')):
         if c and c.strip():
-            return c.strip()
+            return None if c.strip().casefold() in MIRROR_OFF else c.strip()
     return None
+
+
+def source_label(kind, url=''):
+    """Player-facing name of a download source: "author's link", "GitHub backup" (a github.com mirror) or
+    "backup mirror" (any other mirror host given with --mirror)."""
+    if kind == 'mirror' and (urllib.parse.urlparse(url).hostname or '').casefold() not in ('github.com', 'www.github.com'):
+        return 'backup mirror'
+    return SOURCE_LABELS[kind]
 
 
 def credits_text():
@@ -131,16 +150,15 @@ def archive_name(record):
 
 
 def source_urls(record, mirror=None):
-    """Candidate URLs in order: mirror (if configured) then the author's link."""
-    urls = []
-    if mirror:
-        m = urllib.parse.urlparse(mirror)
-        if m.scheme != 'https':
-            raise ToolError('mirror must be an https URL', DOWNLOAD)
-        urls.append(('mirror', mirror.rstrip('/') + '/' + urllib.parse.quote(archive_name(record))))
+    """Candidate URLs in order: the author's link first, then the backup mirror (if configured)."""
     if not AUTHOR_URL.fullmatch(record['url']):
         raise ToolError(f'manifest URL is not an approved author link: {record["url"]}', DOWNLOAD)
-    urls.append(('author', record['url']))
+    urls = [('author', record['url'])]
+    if mirror:
+        m = urllib.parse.urlparse(mirror)
+        if m.scheme != 'https' or not m.hostname:
+            raise ToolError('mirror must be an https URL', DOWNLOAD)
+        urls.append(('mirror', mirror.rstrip('/') + '/' + urllib.parse.quote(archive_name(record))))
     return urls
 
 
@@ -155,6 +173,8 @@ def http_get(url, limit):
 
 def fetch(record, cache, mirror=None, get=http_get, report=None, offline=False):
     """Download one archive into <cache>/quarantine, verify, then move it to <cache>/archives.
+    The author's link is tried first; the mirror (if any) only when the author's link fails or serves a file
+    that does not match the manifest. Both are verified the same way; a mismatch from every source is refused.
     Returns the verified archive path. Reuses an already-verified archive. offline: cache only, a missing
     archive is refused (DOWNLOAD) without any network access."""
     cache = Path(cache)
@@ -165,7 +185,7 @@ def fetch(record, cache, mirror=None, get=http_get, report=None, offline=False):
     if offline:
         raise ToolError(f'{name} is not in the download cache and --offline forbids downloading it', DOWNLOAD)
     limit = int(manifest_limit(record))
-    errors = []
+    errors, author_error = [], ''
     for kind, url in source_urls(record, mirror):
         try:
             data = get(url, limit)
@@ -179,13 +199,15 @@ def fetch(record, cache, mirror=None, get=http_get, report=None, offline=False):
             final.parent.mkdir(parents=True, exist_ok=True)
             os.replace(tmp, final)
             if report:
-                report.emit('download', archive=name, source=kind, bytes=len(data), sha256=record['sha256'],
-                            character=record.get('character'), costume=record.get('costume'))
+                extra = {'author_error': author_error} if kind == 'mirror' and author_error else {}
+                report.emit('download', archive=name, source=kind, source_label=source_label(kind, url),
+                            bytes=len(data), sha256=record['sha256'], character=record.get('character'),
+                            costume=record.get('costume'), **extra)
             return final
-        except ToolError as e:
-            errors.append(f'{kind}: {e}')
-        except OSError as e:
-            errors.append(f'{kind}: {e}')
+        except (ToolError, OSError, http.client.HTTPException, ValueError) as e:
+            if kind == 'author':
+                author_error = str(e)
+            errors.append(f'{source_label(kind, url)}: {e}')
     for p in (cache / 'quarantine').glob(name + '.part'):
         p.unlink()
     raise ToolError(f'could not fetch {name}: ' + '; '.join(errors), DOWNLOAD)

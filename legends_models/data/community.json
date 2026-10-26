@@ -1,7 +1,7 @@
 {
  "author": "BaconWizard17",
  "permission": "https://marvelmods.com/forum/index.php/topic,10629.0.html",
- "permission_note": "Use permitted with credit, as stated by BaconWizard17 (owner verified 2026-10-23). The tool never bundles or mirrors these archives; a mirror URL is configured only by whoever has the author's OK to host them.",
+ "permission_note": "Use permitted with credit, as stated by BaconWizard17 (owner verified 2026-10-23). Backup copies: on 2026-10-25 BaconWizard17 agreed (Discord direct message) to unmodified copies of these archives being kept on this project's GitHub as a backup download, as long as they stay unmodified and he is credited (here, on the release page and in the files, with a link to his thread). His own links stay the default download; the mirror is only tried when his link fails, and every file is checked against the SHA-256 below either way. His terms: no selling, no modification, credit.",
  "source": "models-community downloads/MANIFEST.json (35 archives, hashes verified 2026-10-23)",
  "allowed_member_suffixes": [
   ".igb",
@@ -9,7 +9,7 @@
   ".txt"
  ],
  "max_archive_bytes": 30000000,
- "mirror": "",
+ "mirror": "https://github.com/ChronoRixun/legends-models/releases/download/community-skins-backup-1",
  "archives": [
   {
    "character": "Beast",

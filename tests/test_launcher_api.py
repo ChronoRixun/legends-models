@@ -82,6 +82,7 @@ class Downloads(unittest.TestCase):
         self.assertEqual(len(dl), 1)
         self.assertEqual(dl[0]['sha256'], self.rec['sha256'])
         self.assertEqual((dl[0]['bytes'], dl[0]['character'], dl[0]['costume']), (len(self.data), 'Beast', 'Classic'))
+        self.assertEqual((dl[0]['source'], dl[0]['source_label']), ('author', "author's link"))
 
     def test_offline_uses_the_cache_and_refuses_downloads(self):
         def no_net(url, limit):
@@ -106,6 +107,42 @@ class Offline(Fixture):
     def test_fetch_offline_exits_20(self):
         code, ev = run_cli('fetch', '--hero', 'beast', '--offline', *self.base)
         self.assertEqual(code, errors.DOWNLOAD)
+
+
+class Mirror(Fixture):
+    """--no-mirror / --mirror reach community.fetch from both commands (the GitHub backup is the default)."""
+    def mirrors(self, *args):
+        seen = []
+
+        def fake_fetch(rec, cache, mirror=None, **kw):
+            seen.append(mirror)
+            raise errors.ToolError('no network in tests', errors.DOWNLOAD)
+        with mock.patch.object(community, 'fetch', fake_fetch), mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(community.MIRROR_ENV, None)
+            code, _ = run_cli(*args, *self.base)
+        return code, seen
+
+    def test_fetch_default_backup_and_no_mirror(self):
+        code, seen = self.mirrors('fetch', '--hero', 'beast')
+        self.assertEqual((code, seen), (errors.DOWNLOAD, [community.manifest()['mirror']]))
+        self.assertTrue(seen[0].startswith('https://github.com/ChronoRixun/legends-models/releases/download/'))
+        self.assertEqual(self.mirrors('fetch', '--hero', 'beast', '--no-mirror')[1], [None])
+        self.assertEqual(self.mirrors('fetch', '--hero', 'beast', '--mirror', 'off')[1], [None])
+        self.assertEqual(self.mirrors('fetch', '--hero', 'beast', '--mirror', 'https://m.example/x')[1], ['https://m.example/x'])
+
+    def test_build_no_mirror(self):
+        from legends_models.engines import tiers as tiers_mod
+        got = []
+        real = tiers_mod.Context.__init__
+
+        def spy(ctx, *a, **kw):
+            real(ctx, *a, **kw)
+            got.append(ctx.mirror)
+        fake = fake_adapter(Path(self.tmp.name) / 'cand', {})
+        with mock.patch.object(tiers_mod.Context, '__init__', spy), \
+                mock.patch.dict(tiers_mod.ADAPTERS, {t: fake for t in roster.TIERS}):
+            run_cli('build', '--mode', 'community', '--hero', 'beast', '--no-mirror', *self.base)
+        self.assertEqual(got, [None])
 
 
 class FolderNames(PerHero):

@@ -8,6 +8,17 @@ notes come from the `## vX.Y.Z` section below; a pre-release needs it).
 
 The first public release (a pre-release first: `v0.3.0-beta.1`).
 
+### Changed (beta 3)
+- Community skins have a backup download. BaconWizard17's own links are still tried first; if one fails (HTTP
+  error, timeout, removed link, or a file that does not match the pinned SHA-256), the tool downloads the
+  unmodified backup copy from this project's GitHub release `community-skins-backup-1`, kept with his permission
+  (2026-10-25) and credited to him with a link to his marvelmods.com thread. The backup is checked against the same
+  size and SHA-256; a wrong file is refused. `--no-mirror` (or `--mirror off`, `LEGENDS_MODELS_MIRROR=off`) uses
+  his links only. The `download` event gains `source_label` ("author's link" / "GitHub backup") and, for a backup
+  download, `author_error` (why his link failed); `source` stays `author`/`mirror`.
+- README and credits say plainly what is hosted: the tool bundles nothing; the backup release holds his original
+  archives byte-for-byte, with his terms (credit, no modification, no selling).
+
 ### Changed (beta 2)
 - Player-facing status wording: each tier now says "not in MUA2" / "not in MUA1" (that game has no model of the
   character) or "not converted yet", instead of "no recipe"; available tiers read "MUA1 model", "Community model" and

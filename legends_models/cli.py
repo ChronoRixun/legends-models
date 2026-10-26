@@ -44,7 +44,10 @@ def parser():
         s.add_argument('--skip-tier', action='append', choices=list(roster.TIERS), default=[], help='leave a tier out of the order')
         if name == 'build':
             s.add_argument('--pack', help='mods folder name (default per mode, e.g. Models-Community)')
-            s.add_argument('--mirror', help='https base URL hosting the community archives (with the author\'s OK)')
+            s.add_argument('--mirror', help='https base URL of the community archives backup, tried only when the '
+                           'author\'s link fails (default: this project\'s GitHub backup; "off" = none)')
+            s.add_argument('--no-mirror', action='store_true',
+                           help='community archives only from the author\'s links (never the GitHub backup)')
             s.add_argument('--iterations', type=int, help='fitter iteration ceiling (research default if omitted)')
             s.add_argument('--ai-model', type=Path, help='sharpen: local Real-ESRGAN x4 ONNX model (optional)')
             s.add_argument('--no-cel', action='store_true', help='community: use the non-cel skin variant')
@@ -68,7 +71,8 @@ def parser():
     v.add_argument('--manifest', type=Path)
     f = sub.add_parser('fetch', parents=[common], help='download + verify community archives only')
     f.add_argument('--costume', action='append')
-    f.add_argument('--mirror', help='https mirror base URL (see build --mirror)')
+    f.add_argument('--mirror', help='https backup base URL (see build --mirror)')
+    f.add_argument('--no-mirror', action='store_true', help='only the author\'s links (see build --no-mirror)')
     return p
 
 
@@ -162,7 +166,7 @@ def cmd_build(args, rep):
     work = port_work(args.work, inst['port'].path)
     rep.emit('workspace', path=str(work))
     ctx = Context(inst['port'].path, work, rep, inst['mua1'].path if inst['mua1'].found else None,
-                  inst['mua2'].path if inst['mua2'].found else None, args.work / 'community-cache', community.resolve_mirror(args.mirror),
+                  inst['mua2'].path if inst['mua2'].found else None, args.work / 'community-cache', community.resolve_mirror(args.mirror, disabled=args.no_mirror),
                   args.iterations, args.ai_model, not args.no_cel,
                   heads=not args.no_heads or args.heads_only, heads_only=args.heads_only,
                   materials=tuple((args.materials or '').split('+')) if args.materials else (), offline=args.offline)
@@ -215,7 +219,7 @@ def cmd_fetch(args, rep):
             continue
         c = planmod.costume_for(h, r, costumes) or r.source
         rec = community.entry(h.key, c)
-        p = community.fetch(rec, args.work / 'community-cache', community.resolve_mirror(args.mirror), report=rep,
+        p = community.fetch(rec, args.work / 'community-cache', community.resolve_mirror(args.mirror, disabled=args.no_mirror), report=rep,
                             offline=args.offline)
         done.append(dict(hero=h.key, costume=c, archive=str(p), sha256=rec['sha256']))
     rep.result(dict(fetched=done))

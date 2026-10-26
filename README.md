@@ -7,16 +7,17 @@ Legends Classic is the free fan port of X-Men Legends (2004) onto the X-Men Lege
 first game's models. `legends-models` can give them newer looks:
 
 - **Community pack** (the suggested choice): BaconWizard17's XML2-style skins for the X-Men Legends heroes, made by
-  the author for the community and credited to him. Nothing of his is in this repository: each player downloads the
-  skins from his own marvelmods.com links (his posted terms allow use in projects with credit; his readme asks that
-  the files are not shared outside marvelmods.com or sold), and they are fitted on that player's PC. Needs no other game.
+  the author for the community and credited to him. Each player downloads the skins from his own marvelmods.com
+  links, and they are fitted on that player's PC. If one of his links stops working, the tool falls back to an
+  unmodified backup copy of the same archive that this project keeps, with his permission, as a GitHub release (see
+  [Credits and terms](#credits-and-terms)). Needs no other game.
 - **Upgraded**: per hero, the best model that passes the checks below, from Marvel: Ultimate Alliance 2, then
   Marvel: Ultimate Alliance, then the Community pack - if you own those games and have them installed.
 - **XML2 look** (X-Men Legends II's own models) and **Sharpened classic** (the port's own textures upscaled, mesh
   unchanged) as fallbacks.
 
 It is a converter, not a download of models: every model file is made on your computer from your own installs, or
-downloaded from the community author's own links. It writes an ordinary mod folder for the XML2 Fix mod loader;
+downloaded from the community author's own links (or his backup copies). It writes an ordinary mod folder for the XML2 Fix mod loader;
 remove the folder (or switch it off in the launcher's Mods tab) and the stock models are back.
 
 > **Status: first public pre-release, 0.3.0-beta.1.** The Ultimate Legends launcher's Character models page drives
@@ -25,13 +26,17 @@ remove the folder (or switch it off in the launcher's Mods tab) and the stock mo
 ## What this project ships, and what it never ships
 
 - **Code and format facts only.** No game file, no converted model, no texture and no community skin is in this
-  repository or in any release, and none ever will be. CI refuses game content on every push
-  (`tools/check_no_game_content.py`), and the release build checks its own bundle the same way.
+  repository or in any release of the tool, and none ever will be. CI refuses game content on every push
+  (`tools/check_no_game_content.py`), and the release build checks its own bundle the same way. The one exception
+  is a separate release, `community-skins-backup-1`, that holds unmodified backup copies of BaconWizard17's
+  archives with his permission (below); it is not part of the tool's download.
 - **Bring your own copy.** The tool reads your own installs (Legends Classic, and optionally Marvel: Ultimate
   Alliance and Marvel: Ultimate Alliance 2) **read-only**, converts on your PC, and writes only under
   `<Legends Classic>\mods\`. Nothing is uploaded anywhere.
 - **Community skins** are downloaded on your PC from the author's own links, checked against a SHA-256 manifest and
-  a file allow-list, and credited in each pack's `CREDITS.md`. This project never bundles, mirrors or re-hosts them.
+  a file allow-list, and credited in each pack's `CREDITS.md`. Only when his link fails does the tool use the
+  GitHub backup copy, checked against the same SHA-256. The tool never bundles them, and the backup copies are his
+  original files, never modified, re-packed or renamed.
 - Generated packs say so in their `readme.txt`: they are for your own use; do not share them.
 - This is an unofficial, non-commercial fan project. It is not affiliated with or endorsed by the owners of the
   games or the characters, or by the community authors whose skins it can download. You need your own legal copies
@@ -56,16 +61,22 @@ What you need besides it:
 | **Windows 10 or 11, 64-bit** | the release is a Windows program. |
 | **Marvel: Ultimate Alliance** (optional) | the 2006 release (loose `actors\*.igb`) or the 2016 release (`actors.bin`), for the Upgraded tier. |
 | **Marvel: Ultimate Alliance 2** (optional) | the PC release (`actors.bin`, `materials.bin`, `textures.bin`), for the Upgraded tier. |
-| **Internet** (Community pack only) | once per costume, for the author's archive (1-2 MB each). `--offline` never downloads. |
+| **Internet** (Community pack only) | once per costume, for the author's archive (1-2 MB each; from his link, or the GitHub backup if his link fails). `--offline` never downloads. |
 
 ## Credits and terms
 
 - **Community skins, heads and portraits: BaconWizard17** ([his release thread on
   marvelmods.com](https://marvelmods.com/forum/index.php/topic,10629.0.html)), with the co-credits he lists per
-  costume. Use with credit is permitted as stated by the author; his readmes ask that his files are not shared
-  outside marvelmods.com, so this project never hosts them: they come from his own links on your PC. The full
-  credits are in [`legends_models/data/community-credits.md`](legends_models/data/community-credits.md) and are
-  copied into every pack that uses them.
+  costume. Use with credit is permitted as stated by the author. His readmes ask that his files are not shared
+  outside marvelmods.com, so his own links stay the default download. On 2026-10-25 he agreed to this project
+  keeping unmodified copies of his archives on GitHub as a backup download, as long as they stay unmodified and he
+  is credited: they are the files of the
+  [`community-skins-backup-1`](https://github.com/ChronoRixun/legends-models/releases/tag/community-skins-backup-1)
+  release, byte-for-byte his originals (each one's SHA-256 is in the release notes and in
+  [`community.json`](legends_models/data/community.json)), credited there with a link back to his thread. His
+  terms: credit him, do not modify his files, do not sell them. The full credits are in
+  [`legends_models/data/community-credits.md`](legends_models/data/community-credits.md) and are copied into every
+  pack that uses them.
 - The games and characters belong to their owners. This project contains none of their files.
 - The code is MIT licensed (see [`LICENSE`](LICENSE)).
 
@@ -154,10 +165,14 @@ legends-models remove --port "C:\Legends-classic" --pack Models-Upgraded
 - `--costume hero=ID` or `hero=tier:ID` picks a costume (MUA1 Wolverine: `0303` classic yellow/blue is the default,
   `0301` white shirt/jeans, `0302` brown/yellow; community `Original`/`Ultimate XML1`/... per hero; `scan --json`
   lists them).
-- Community archives: the author's own links are always the fallback. `--mirror URL` (or `LEGENDS_MODELS_MIRROR`, or
-  the manifest's `mirror` entry) names an https base URL that is tried first; the archive file name is appended.
-  Size and SHA-256 are checked against the built-in manifest either way, so a wrong or tampered mirror file is
-  refused and the author's link is used. Only point it at a mirror whose host has the author's OK.
+- Community archives: the author's own link is always tried first. Only if it fails (HTTP error, timeout, removed
+  link, or a file whose size or SHA-256 differs from the built-in manifest) is the backup tried: by default the
+  GitHub release `community-skins-backup-1` (the manifest's `mirror` entry); `--mirror URL` or
+  `LEGENDS_MODELS_MIRROR` names another https base URL (the archive file name is appended). The backup file is
+  checked against the same size and SHA-256, so a wrong or tampered file is refused. `--no-mirror` (or
+  `--mirror off` / `LEGENDS_MODELS_MIRROR=off`) uses the author's links only. The `download` event says which source
+  was used (`source` `author`/`mirror`, `source_label` "author's link"/"GitHub backup"). Only point `--mirror` at a
+  host that has the author's OK.
 - `--offline` never downloads: community costumes that are not in the download cache stay unavailable.
 - The roster has the 15 playable heroes plus 5 villains/bosses (Magneto, Juggernaut, Sabretooth, Toad, Pyro); the
   villains only have the community and sharpened tiers.

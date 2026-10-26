@@ -62,7 +62,8 @@ select portraits; MUA2/XML2/Sharpened: none). `build --no-heads` leaves them out
 | `--hero NAME` | limit to heroes (repeatable); characters already in the pack are kept |
 | `--costume hero=ID` / `hero=tier:ID` | costume choice (`scan --json` lists the costumes per hero and tier) |
 | `--strict` | only owner-accepted costumes |
-| `--mirror URL` | https base URL serving the community archives by file name (only with the author's OK; credit unchanged); default `$LEGENDS_MODELS_MIRROR`, then the manifest's `mirror`; every archive is hash-checked, a bad mirror file falls back to the author's link |
+| `--mirror URL` | https base URL serving the community archives by file name, tried only when the author's link fails (HTTP error, timeout, removed link, size/SHA-256 mismatch); default `$LEGENDS_MODELS_MIRROR`, then the manifest's `mirror` (the GitHub backup release `community-skins-backup-1`, kept with the author's permission); the mirror file is hash-checked the same way and refused on a mismatch; `off` = no mirror |
+| `--no-mirror` | `build`/`fetch`: the author's links only, never the backup (same as `--mirror off` or `LEGENDS_MODELS_MIRROR=off`) |
 | `--offline` | never download: community archives come only from the download cache (`<work>\community-cache`); `plan`/`build` show uncached community costumes as unavailable (`reason`: "... is not in the download cache (offline)") and fall to the next tier or stock; `fetch` exits 20 |
 | `--no-heads` | do not install the conversation portrait / 3D HUD head / select portrait with the models (`--heads-only`: only those) |
 | `--python EXE` | interpreter with NumPy/SciPy/Pillow for the converters (or `LEGENDS_MODELS_PYTHON`) |
@@ -83,7 +84,7 @@ Every event: `{"event": ..., "api": 1, "t": seconds-since-start, ...}`.
 | `workspace` | `path` | the per-port private work folder in use |
 | `cache` | `hero`, `tier`, `hit` | a stored result for identical inputs was reused (re-gated; `--rebuild` disables) |
 | `engine` | `engine`, `script`, `log` | the converter process started; `log` is the full engine log path |
-| `download` | `archive`, `source` (`mirror`/`author`), `bytes`, `sha256`, `character`, `costume` | community archive fetched and verified (`sha256` = the verified archive hash, the manifest's) |
+| `download` | `archive`, `source` (`author`/`mirror`), `source_label` (`author's link`/`GitHub backup`; `backup mirror` for a non-GitHub `--mirror`), `bytes`, `sha256`, `character`, `costume`, `author_error` (mirror only: why the author's link failed) | community archive fetched and verified (`sha256` = the verified archive hash, the manifest's); show `source_label` in the Downloads tab |
 | `gate` | `hero`, `tier`, `passed`, `failures[]` or `owner_accepted` | per attempt; a failure moves to the next tier |
 | `warning` | `message`, `hero` | a tier could not run (e.g. missing helper); next tier tried |
 | `error` | `message`, `code` | fatal; same code as the exit code. A build where every hero was refused for a download (or a missing helper) exits 20 (or 3) instead of 11 |
@@ -164,8 +165,10 @@ with PyInstaller (one folder, console, no UPX; CPython 3.12 x64 + NumPy, SciPy, 
 the converters' interpreter: `legends-models.exe -B <script.py> ...` / `-c <code>` run with the bundled libraries
 (`__main__.python_shim`), so `--python` is not needed. `--sampler <exe>` bundles the CI-built `sample_enbaya.exe`
 (x86; `tools/build_sampler.cmd`); without it `scan` reports `helpers.sampler: null` and the converter tiers that need
-clips refuse with exit 3. Community downloads honour `--mirror` so a credited, permitted mirror can replace MediaFire
-later without a tool change.
+clips refuse with exit 3. Community downloads fall back to the GitHub backup release `community-skins-backup-1`
+(unmodified copies, kept with the author's permission) when the author's MediaFire link fails; `--mirror` can name
+another permitted host without a tool change. That release is not a tool release: its tag is not a version, it is
+a pre-release that is never marked latest, so `releases/latest` and the Beta channel never pick it.
 
 The release workflow (`.github/workflows/release.yml`) builds the sampler with MSVC, runs the unit tests, freezes,
 smoke-tests the frozen folder and the unpacked zip on synthetic installs (`tools/freeze_smoke.py`), checks the files
@@ -192,3 +195,7 @@ Character models page; it is set in `tools/freeze.py` (`MIN_LAUNCHER`) or with `
    `stage` events `renamed <old> to <new> (group-qualified folder names)` on the first 0.3.0 build.
 5. `verify`: `stale`, `stale_folders[]`, `port_changed[]`, `port_build_unknown[]`, exit 31 = offer Rebuild.
 6. Release: `legends-models.json` manifest next to the zip; the exe needs no Python.
+7. (beta 3) Community downloads: the author's link first, then the GitHub backup. `download` events gain
+   `source_label` ("author's link" / "GitHub backup") and, for a backup download, `author_error`; `source` keeps its
+   values (`author`/`mirror`), so a launcher that maps `source` keeps working. `--no-mirror` (`build`, `fetch`) for a
+   player who wants the author's links only.

@@ -2,11 +2,13 @@
 
 Community skins, conversation portraits, 3D heads, character select portraits and other included models: BaconWizard17.
 Source and terms: https://marvelmods.com/forum/index.php/topic,10629.0.html
-His forum post allows use in projects with credit, as stated by BaconWizard17 (owner verified 2026-10-23). No permission to re-host his files has been given, and none is assumed.
-His download readme also asks that the skins are not shared outside marvelmods.com and not sold. This tool follows that: it never bundles or re-hosts the archives - each player downloads them from the author's own links, and they are converted on that player's PC.
+His forum post allows use in projects with credit, as stated by BaconWizard17 (owner verified 2026-10-23).
+His download readme also asks that the skins are not shared outside marvelmods.com and not sold. The tool never bundles the archives: each player downloads them from the author's own links, and they are converted on that player's PC.
+Backup copies: on 2026-10-25 BaconWizard17 agreed to this project keeping unmodified copies of his archives on GitHub as a backup download, as long as they stay unmodified and he is credited. They are the files of the release https://github.com/ChronoRixun/legends-models/releases/tag/community-skins-backup-1 - his original archives byte-for-byte (same SHA-256 as his downloads), never modified, re-packed or renamed. The tool uses them only when his own link fails.
+His terms: credit him, do not modify his files, do not sell them.
 Per-costume co-credits will be retained from the source posts. Wolverine Original/Astonishing texture co-credit: Maegawa.
 
-Generated/downloaded assets are local-only and must not be committed, mirrored or published.
+The converted models in this pack were made on your PC for your own use: do not commit, mirror, publish or sell them.
 
 ## Beast
 

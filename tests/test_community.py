@@ -116,30 +116,107 @@ class Download(unittest.TestCase):
         with self.assertRaises(ToolError):
             community.fetch(record(), self.cache, get=lambda u, l: ARCHIVE + b'more')
 
-    def test_mirror_first_then_author_with_credit_kept(self):
+    # --- author's link first, the GitHub backup only on failure (fake HTTP, no network)
+    MIRROR = 'https://github.com/ChronoRixun/legends-models/releases/download/community-skins-backup-1'
+
+    def fake_http(self, author, mirror):
+        """A transport: author/mirror are bytes to serve or an exception to raise. Records every URL asked."""
         seen = []
 
         def get(url, limit):
             seen.append(url)
-            if url.startswith('https://mirror.example'):
-                raise OSError('mirror down')
-            return ARCHIVE
-        community.fetch(record(), self.cache, mirror='https://mirror.example/packs/', get=get)
-        self.assertEqual(seen[0], 'https://mirror.example/packs/05XX_Classic.rar')
-        self.assertTrue(seen[1].startswith('https://www.mediafire.com/'))
+            if url.startswith('https://github.com/'):
+                answer = mirror
+            elif 'file_premium' in url:   # the author's MediaFire page: errors and a page without a button come from it
+                answer = author if isinstance(author, BaseException) or author.startswith(b'<html') else PAGE
+            else:                          # the direct link from the page
+                answer = author
+            if isinstance(answer, BaseException):
+                raise answer
+            return answer
+        return seen, get
+
+    def events(self):
+        got = []
+
+        class Rep:
+            def emit(self, event, **kw):
+                got.append(dict(kw, event=event))
+        return got, Rep()
+
+    def test_author_ok_mirror_never_asked(self):
+        seen, get = self.fake_http(ARCHIVE, AssertionError('mirror asked'))
+        got, rep = self.events()
+        p = community.fetch(record(), self.cache, mirror=self.MIRROR, get=get, report=rep)
+        self.assertEqual(community.sha256_file(p), record()['sha256'])
+        self.assertFalse(any(u.startswith('https://github.com/') for u in seen), seen)
+        dl = [e for e in got if e['event'] == 'download']
+        self.assertEqual([(e['source'], e['source_label']) for e in dl], [('author', "author's link")])
+        self.assertNotIn('author_error', dl[0])
+
+    def test_author_fails_then_github_backup(self):
+        import io
+        import socket
+        import urllib.error
+        bad = ARCHIVE[:-1] + b'X'
+        for why, author in [('http 404', urllib.error.HTTPError('https://www.mediafire.com/x', 404, 'Not Found', {}, io.BytesIO(b''))),
+                            ('timeout', socket.timeout('timed out')), ('timeout', TimeoutError('timed out')),
+                            ('link removed', b'<html>no button</html>'), ('hash mismatch', bad),
+                            ('truncated', ARCHIVE[:-5])]:
+            with self.subTest(why=why), tempfile.TemporaryDirectory() as t:
+                cache = Path(t)
+                seen, get = self.fake_http(author, ARCHIVE)
+                got, rep = self.events()
+                p = community.fetch(record(), cache, mirror=self.MIRROR + '/', get=get, report=rep)
+                self.assertEqual(p.read_bytes(), ARCHIVE)
+                self.assertTrue(seen[0].startswith('https://www.mediafire.com/'), seen)   # author first
+                self.assertEqual(seen[-1], self.MIRROR + '/05XX_Classic.rar')
+                dl = [e for e in got if e['event'] == 'download']
+                self.assertEqual(len(dl), 1)
+                self.assertEqual((dl[0]['source'], dl[0]['source_label']), ('mirror', 'GitHub backup'))
+                self.assertEqual(dl[0]['sha256'], record()['sha256'])
+                self.assertTrue(dl[0]['author_error'])
+                self.assertEqual(list((cache / 'quarantine').glob('*.part')), [])
+
+    def test_github_backup_hash_mismatch_refused(self):
+        bad = ARCHIVE[:-1] + b'X'
+        seen, get = self.fake_http(OSError('author down'), bad)
+        got, rep = self.events()
+        with self.assertRaises(ToolError) as e:
+            community.fetch(record(), self.cache, mirror=self.MIRROR, get=get, report=rep)
+        self.assertEqual(e.exception.code, DOWNLOAD)
+        self.assertIn("author's link: author down", str(e.exception))
+        self.assertIn('GitHub backup: SHA-256', str(e.exception))
+        self.assertEqual(len(seen), 2)
+        self.assertEqual([x for x in got if x['event'] == 'download'], [])
+        self.assertFalse((self.cache / 'archives').exists() and any((self.cache / 'archives').iterdir()))
+        self.assertEqual(list((self.cache / 'quarantine').glob('*')), [])
+        # a wrong-size backup file is refused the same way
+        with self.assertRaises(ToolError):
+            community.fetch(record(), self.cache, mirror=self.MIRROR, get=self.fake_http(OSError('x'), ARCHIVE + b'!')[1])
+
+    def test_no_mirror_means_author_only(self):
+        seen, get = self.fake_http(OSError('author down'), ARCHIVE)
+        with self.assertRaises(ToolError):
+            community.fetch(record(), self.cache, mirror=community.resolve_mirror(None, {'mirror': self.MIRROR}, disabled=True),
+                            get=get)
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(seen[0].startswith('https://www.mediafire.com/'))
+
+    def test_mirror_url_checks_and_labels(self):
         with self.assertRaises(ToolError):
             community.source_urls(record(), mirror='http://insecure.example/')
+        self.assertEqual([k for k, _ in community.source_urls(record(), mirror=self.MIRROR)], ['author', 'mirror'])
+        self.assertEqual(community.source_urls(record())[0][0], 'author')
+        self.assertEqual(community.source_label('author'), "author's link")
+        self.assertEqual(community.source_label('mirror', self.MIRROR + '/05XX_Classic.rar'), 'GitHub backup')
+        self.assertEqual(community.source_label('mirror', 'https://mirror.example/r/05XX_Classic.rar'), 'backup mirror')
 
-    def test_wrong_mirror_file_is_refused_and_author_link_used(self):
-        seen = []
-        bad = ARCHIVE[:-1] + b'X'
-
-        def get(url, limit):
-            seen.append(url)
-            return bad if url.startswith('https://mirror.example') else ARCHIVE
-        p = community.fetch(record(), self.cache, mirror='https://mirror.example/r', get=get)
-        self.assertEqual(len(seen), 2)
-        self.assertEqual(community.sha256_file(p), record()['sha256'])
+    def test_shipped_mirror_is_the_github_backup_release(self):
+        with mock.patch.dict('os.environ', {}, clear=False):
+            os.environ.pop('LEGENDS_MODELS_MIRROR', None)
+            self.assertEqual(community.resolve_mirror(), self.MIRROR)
+            self.assertIsNone(community.resolve_mirror(disabled=True))
 
     def test_resolve_mirror_order(self):
         with mock.patch.dict('os.environ', {}, clear=False):
@@ -149,8 +226,12 @@ class Download(unittest.TestCase):
             os.environ['LEGENDS_MODELS_MIRROR'] = 'https://env.example/b'
             self.assertEqual(community.resolve_mirror(None, {'mirror': 'https://m.example/a'}), 'https://env.example/b')
             self.assertEqual(community.resolve_mirror('https://arg.example/c', {}), 'https://arg.example/c')
+            self.assertIsNone(community.resolve_mirror('https://arg.example/c', {}, disabled=True))
+            os.environ['LEGENDS_MODELS_MIRROR'] = 'off'
+            self.assertIsNone(community.resolve_mirror(None, {'mirror': 'https://m.example/a'}))
             os.environ.pop('LEGENDS_MODELS_MIRROR')
             self.assertIsNone(community.resolve_mirror('  ', {'mirror': ''}))
+            self.assertIsNone(community.resolve_mirror('OFF', {'mirror': 'https://m.example/a'}))
 
     def test_unapproved_urls_and_names_refused(self):
         for r in [record(url='https://example.com/05XX_Classic.rar'), record(archive='..\\evil.rar'),
