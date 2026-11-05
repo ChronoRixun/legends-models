@@ -17,9 +17,10 @@ Same shape as the Legends Classic builder's tools/freeze_builder.py: run it with
   4. --smoke: tools/freeze_smoke.py against the frozen folder (synthetic installs, no game data).
 --check-tag (CI on a tag): the tag's numeric base must equal legends_models.__version__ (tools/release_metadata.py).
 LM_RELEASE_TAG (CI on a tag): the full tag version (0.3.0-beta.1) goes into build-info (which the frozen exe reports
-as its --version), the exe's version resource, the zip name and the manifest. A pre-release tag's default
-min_launcher is MIN_LAUNCHER-0, so the launcher's own betas of that version accept it (the builder's
-requires_xml2fix policy).
+as its --version), the exe's version resource, the zip name and the manifest. The default min_launcher is
+MIN_LAUNCHER-0 for every tag, stable or pre-release, so the launcher's own betas and release candidates of that
+version accept it too (the builder's requires_xml2fix policy): the launcher's Beta channel also picks a stable tool
+release, and a 0.5.0-beta / -rc launcher must not be refused a tool it runs (see default_min_launcher).
 Nothing is published. No UPX. --sampler bundles a CI-built sample_enbaya.exe as _internal/legends_models/bin/
 (the converters need it for animation clips; without it the exe reports the helper missing, as the CLI does)."""
 from __future__ import annotations
@@ -50,7 +51,16 @@ FORBIDDEN = {'.igb', '.igz', '.rar', '.7z', '.dds', '.png', '.jpg', '.jpeg', '.t
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(TOOLS))
 from legends_models import __version__ as VERSION  # noqa: E402  (the numeric base)
-from release_metadata import metadata, release_version  # noqa: E402
+from release_metadata import release_version  # noqa: E402
+
+
+def default_min_launcher() -> str:
+    """The manifest's min_launcher without --min-launcher: MIN_LAUNCHER or any pre-release of it (MIN_LAUNCHER-0).
+
+    The same for a stable and a pre-release tag. The launcher's Beta channel takes the highest version, stable
+    releases included, so a stable tool that said plain MIN_LAUNCHER would refuse the launcher's own betas and
+    release candidates of that version (they sort below it), although they run it exactly as they ran its betas."""
+    return MIN_LAUNCHER + '-0'
 
 
 def zip_name(version: str) -> str:
@@ -148,7 +158,7 @@ def main(argv=None) -> int:
     ap.add_argument('--work', default=str(REPO / 'build' / 'freeze'))
     ap.add_argument('--sampler', help='a CI-built sample_enbaya.exe to bundle (default: none)')
     ap.add_argument('--min-launcher', dest='min_launcher',
-                    help=f'the manifest\'s min_launcher (default {MIN_LAUNCHER}; {MIN_LAUNCHER}-0 for a pre-release)')
+                    help=f'the manifest\'s min_launcher (default {MIN_LAUNCHER}-0: {MIN_LAUNCHER} or a pre-release of it)')
     ap.add_argument('--smoke', action='store_true', help='run tools/freeze_smoke.py on the frozen folder')
     ap.add_argument('--check-tag', dest='check_tag', help='check v<VERSION> with an optional -beta.N or -rc.N suffix')
     a = ap.parse_args(argv)
@@ -165,8 +175,7 @@ def main(argv=None) -> int:
         version = release_version(tag, VERSION)
     except ValueError as exc:
         ap.error(str(exc))
-    prerelease = bool(tag) and metadata(tag)['prerelease']
-    min_launcher = a.min_launcher or (MIN_LAUNCHER + '-0' if prerelease else MIN_LAUNCHER)
+    min_launcher = a.min_launcher or default_min_launcher()
     t0 = time.time()
     dist, work = Path(a.dist).resolve(), Path(a.work).resolve()
     gen = work / 'gen'

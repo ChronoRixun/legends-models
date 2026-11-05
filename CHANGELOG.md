@@ -4,9 +4,18 @@ legends-models' version is `__version__` in `legends_models/__init__.py` (and `p
 `vX.Y.Z` for a normal release, `vX.Y.Z-beta.N` / `vX.Y.Z-rc.N` for a pre-release of the same version (the release
 notes come from the `## vX.Y.Z` section below; a pre-release needs it).
 
-## v0.3.0
+## v0.3.0 (2026-11-05)
 
-The first public release (a pre-release first: `v0.3.0-beta.1`).
+The first stable release, published with Ultimate Legends 0.5.0 (the first launcher with the Character models page).
+It is the tool of `v0.3.0-beta.3` with no change to the conversion, packs or launcher API, and it is now the launcher's
+Stable-channel tool (`releases/latest`); the Beta channel moves to it too. Everything since `v0.3.0-beta.1`, the
+first public pre-release, is below.
+
+### Changed (stable)
+- `legends-models.json` says `min_launcher` `0.5.0-0` for this stable release as for the betas: Ultimate Legends
+  0.5.0 or any beta / release candidate of it. The launcher's Beta channel also picks a stable tool, and a plain
+  `0.5.0` would have refused the 0.5.0 betas and release candidates that run it exactly as they ran beta 3.
+- README status: the first stable release.
 
 ### Changed (beta 3)
 - Community skins have a backup download. BaconWizard17's own links are still tried first; if one fails (HTTP

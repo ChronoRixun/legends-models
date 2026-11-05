@@ -58,6 +58,20 @@ class Tags(unittest.TestCase):
         with self.assertRaises(ValueError):
             R.release_notes('v9.0.0-beta.1', manifest, changelog, '')
 
+    def test_the_stable_notes_from_the_real_changelog(self):
+        manifest = {'api': 1, 'content_version': 1, 'min_launcher': '0.5.0-0'}
+        changelog = (REPO / 'CHANGELOG.md').read_text(encoding='utf-8')
+        v = legends_models.__version__
+        notes = R.release_notes(f'v{v}', manifest, changelog, f'abc  legends-models-{v}-win64.zip\n')
+        self.assertFalse(notes.startswith('Beta'))
+        self.assertIn(f'legends-models v{v} (launcher API 1', notes)
+        self.assertIn('Ultimate Legends 0.5.0 (or a beta of it) or newer', notes)
+        self.assertIn('### Added', notes)
+
+    def test_the_default_min_launcher_admits_the_launcher_betas_for_every_tag(self):
+        import freeze  # tools/freeze.py: importable without PyInstaller or NumPy
+        self.assertEqual(freeze.default_min_launcher(), freeze.MIN_LAUNCHER + '-0')
+
     def test_the_changelog_has_the_current_version(self):
         text = (REPO / 'CHANGELOG.md').read_text(encoding='utf-8')
         self.assertTrue(re.search(rf'^## v{re.escape(legends_models.__version__)}( |$)', text, re.M))

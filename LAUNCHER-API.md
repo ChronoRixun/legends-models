@@ -176,14 +176,16 @@ smoke-tests the frozen folder and the unpacked zip on synthetic installs (`tools
 
 | Tag | Release | `legends-models.json` `version` / zip | `min_launcher` |
 |---|---|---|---|
-| `v0.3.0` | normal, latest: `releases/latest/download/legends-models.json` | `0.3.0` / `legends-models-0.3.0-win64.zip` | `0.5.0` |
+| `v0.3.0` | normal, latest: `releases/latest/download/legends-models.json` | `0.3.0` / `legends-models-0.3.0-win64.zip` | `0.5.0-0` |
 | `v0.3.0-beta.1`, `v0.3.0-rc.1` | pre-release, never latest: `releases/download/v0.3.0-beta.1/legends-models.json` | `0.3.0-beta.1` / `legends-models-0.3.0-beta.1-win64.zip` | `0.5.0-0` (a launcher beta of 0.5.0 qualifies) |
 
 The tag's `X.Y.Z` must equal the tool's version (`legends_models/__init__.py`); the exe reports the full version
 (`--version`, the markers' `version`). Manifest fields: `version`, `content_version` (pack format; a change means
 rebuild), `zip`, `size`, `sha256`, `min_launcher` (the fields `tool_install::parse_manifest` reads), plus `api` (the
-JSON API version, 1) and `sampler_bundled`. `min_launcher` 0.5.0 stands for the first launcher release with the
-Character models page; it is set in `tools/freeze.py` (`MIN_LAUNCHER`) or with `--min-launcher`.
+JSON API version, 1) and `sampler_bundled`. `min_launcher` 0.5.0-0 stands for the first launcher release with the
+Character models page, 0.5.0, or any beta / release candidate of it, for a stable tag as for a pre-release: the
+launcher's Beta channel also picks a stable tool release, and a 0.5.0 beta or rc launcher runs it as it ran the tool's
+betas. It is set in `tools/freeze.py` (`MIN_LAUNCHER`, `default_min_launcher`) or with `--min-launcher`.
 
 ## What changed for the launcher in 0.3.0 (the launcher's fake tool should emit these)
 
