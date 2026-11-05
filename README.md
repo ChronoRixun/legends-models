@@ -20,8 +20,8 @@ It is a converter, not a download of models: every model file is made on your co
 downloaded from the community author's own links (or his backup copies). It writes an ordinary mod folder for the XML2 Fix mod loader;
 remove the folder (or switch it off in the launcher's Mods tab) and the stock models are back.
 
-> **Status: first public pre-release, 0.3.0-beta.1.** The Ultimate Legends launcher's Character models page drives
-> it; until a launcher release ships that page, the tool is for testers and command-line use.
+> **Status: 0.3.0, the first stable release.** The Ultimate Legends launcher's Character models page (launcher
+> 0.5.0 or newer) installs and drives it on both update channels; it also works from the command line.
 
 ## What this project ships, and what it never ships
 
