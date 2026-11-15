@@ -204,7 +204,7 @@ def lookup(hero, choice, ctx, records):
         except (OSError, ValueError) as e:
             raise ToolError(f'{hero.name}: cannot hash changed accepted inputs: {e}', MISSING_INPUT) from e
         ctx.report.emit('cache', **event, hit=False, reason='inputs_changed', refit=True,
-                        changed_inputs=['source/template'], message='Accepted source/template hashes differ; checking changed-input result cache before fitting')
+                        changed_inputs=['source/template'], message='Your game files differ from the approved model; converting this hero again')
         return None, content_key
     changed, problems, extra_refs = [], [], set()
     for record in matching:
@@ -229,7 +229,7 @@ def lookup(hero, choice, ctx, records):
                 ctx.report.emit('cache', **event, hit=True, reason='accepted_inputs_match', refit=False,
                                 input_key=hashlib.sha256(json.dumps(meta['inputs'], sort_keys=True).encode()).hexdigest(),
                                 output_sha256=record['output_sha256'], owner_accepted=True, numeric_pass=result['numeric_pass'],
-                                acceptance_reason=result['acceptance_reason'], message=result['acceptance_reason'])
+                                acceptance_reason=result['acceptance_reason'], message='Approved model')
                 return Candidate(actor, report, 'deform', notes=['accepted output reused (input hashes match; owner accepted exact bytes)'], gate=result), None
             except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
                 problems.append(str(e))
@@ -237,7 +237,7 @@ def lookup(hero, choice, ctx, records):
     # Damaged/missing bundles and mismatched report hashes cannot silently change an accepted look.
     if changed and not problems:
         ctx.report.emit('cache', **event, hit=False, reason='inputs_changed', refit=True,
-                        changed_inputs=sorted(set(changed)), message='Accepted bundle inputs differ; checking changed-input result cache before fitting')
+                        changed_inputs=sorted(set(changed)), message='Your game files differ from the approved model; converting this hero again')
         return None, changed_key(extra_refs)
     message = f'{hero.name}: accepted output unavailable or report/hash invalid; populate the offline accepted cache'
     if problems:

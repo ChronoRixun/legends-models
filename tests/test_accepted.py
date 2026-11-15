@@ -263,7 +263,8 @@ class AcceptedBuild(AcceptedFixture):
 
     def test_seed_round_trip_checks_catalogue_hash_and_full_inputs(self):
         from legends_models import accepted
-        ctx = tiers.Context(self.port, self.work / 'unused', Reporter(True, io.StringIO()), self.mua1, self.mua2)
+        stream = io.StringIO()
+        ctx = tiers.Context(self.port, self.work / 'unused', Reporter(True, stream), self.mua1, self.mua2)
         target = self.work / 'seeded'
         folder = accepted.seed(self.hero, self.choice, ctx, self.record, self.bundle / 'actor.IGB',
                                self.bundle / 'report.json', {'clips': [['idle', 'x1_03_wolverine.IGB']]}, target)
@@ -271,6 +272,13 @@ class AcceptedBuild(AcceptedFixture):
         candidate, force = accepted.lookup(self.hero, self.choice, ctx, {self.record['output_sha256']: self.record})
         self.assertFalse(force)
         self.assertEqual(candidate.path.read_bytes(), b'accepted actor')
+        # Player-facing text: the launcher shows 'message'; developer reasons stay out of it.
+        events = [json.loads(l) for l in stream.getvalue().splitlines() if l.startswith('{')]
+        hits = [e for e in events if e.get('event') == 'cache' and e.get('hit')]
+        self.assertTrue(hits)
+        for e in hits:
+            self.assertEqual(e.get('message'), 'Approved model')
+            self.assertNotIn('numeric criteria', e.get('message', ''))
         # Compare resolved paths: GitHub runners' TEMP can be an 8.3 short name (RUNNER~1).
         self.assertEqual(folder.resolve(), candidate.path.parent.resolve())
         bad = dict(self.record, output_sha256='0'*64)

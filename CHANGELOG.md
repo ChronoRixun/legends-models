@@ -4,6 +4,13 @@ legends-models' version is `__version__` in `legends_models/__init__.py` (and `p
 `vX.Y.Z` for a normal release, `vX.Y.Z-beta.N` / `vX.Y.Z-rc.N` for a pre-release of the same version (the release
 notes come from the `## vX.Y.Z` section below; a pre-release needs it).
 
+## v0.4.1 (2026-11-14)
+
+### Fixed
+- The Character models page showed a developer note ("Owner accepted this exact output hash; later numeric criteria
+  do not revoke that decision") next to approved models. It now says **Approved model**; when your game files differ
+  from an approved model, it says that hero is being converted again. The detailed reason stays in `--verbose`.
+
 ## v0.4.0 (2026-11-14)
 
 ### Added
