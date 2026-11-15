@@ -58,6 +58,21 @@
         "character": "Gambit",
         "kind": "hero",
         "name": "Classic"
+      },
+      "0801": {
+        "name": "Classic",
+        "character": "Iceman",
+        "kind": "hero"
+      },
+      "12301": {
+        "name": "!BADREF:@SKINS@12301",
+        "character": "Jean Grey",
+        "kind": "hero"
+      },
+      "12302": {
+        "name": "!BADREF:@SKINS@12302",
+        "character": "Jean Grey",
+        "kind": "hero"
       }
     },
     "xml2": {

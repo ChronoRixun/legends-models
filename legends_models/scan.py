@@ -203,6 +203,7 @@ def availability(inst, tier, hero, recipe, source=None):
 
 
 def scan(args_port=None, args_mua1=None, args_mua2=None, steam=None):
-    libs = steam_libraries(steam)
+    # Known inputs need no machine-wide library discovery.
+    libs = [] if args_port and args_mua1 and args_mua2 else steam_libraries(steam)
     return {'port': scan_port(args_port), 'mua1': scan_mua1(args_mua1, libs), 'mua2': scan_mua2(args_mua2, libs),
             'libraries': [str(x) for x in libs]}

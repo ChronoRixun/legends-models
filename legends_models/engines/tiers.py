@@ -29,7 +29,7 @@ class Candidate:
 
 class Context:
     def __init__(self, port, work, report, mua1=None, mua2=None, community_cache=None, mirror=None,
-                 iterations=None, ai_model=None, cel=True, extractor=None, heads=True, heads_only=False, materials=(), offline=False):
+                 iterations=None, ai_model=None, cel=True, extractor=None, heads=True, heads_only=False, materials=(), offline=False, accepted_cache=None, refine_max_calls=None, refine_max_seconds=None):
         self.port = Path(port).resolve()
         self.work = Path(work).resolve()
         self.report = report
@@ -43,6 +43,9 @@ class Context:
         self.heads = heads
         self.heads_only = heads_only
         self.extractor = extractor
+        self.refine_max_calls = refine_max_calls
+        self.refine_max_seconds = refine_max_seconds
+        self.accepted_cache = Path(accepted_cache or self.work / 'accepted')
         self.offline = offline
         self.materials = tuple(materials or ())   # optional MUA material steps: 'spec', 'bake'
 
@@ -150,13 +153,18 @@ def mua2(hero, choice, ctx):
         _fail(f'{hero.key}: could not read actors/{choice.source}.igz from MUA2', log)
     recipe = MUA2_RECIPES[hero.key]
     ev = root / 'evidence' / hero.key
-    _clear(ev / f'{hero.skin}.IGB', ev / 'gate.json', ev / 'conversion.json', ev / 'bind-refinement.json')
+    # A cache miss can mean changed source/animation bytes. The vendor caches
+    # animations by filename only; never carry those into a fresh refit.
+    _clear(ev / f'{hero.skin}.IGB', ev / 'gate.json', ev / 'conversion.json', ev / 'bind-refinement.json', ev / 'fit')
     (root / 'renders').mkdir(parents=True, exist_ok=True)  # validate_mua2.py expects the research folder layout
     args = ['--character', hero.key, '--iterations', ctx.iterations or recipe['iterations']]
     if run('mua2', root, 'convert_mua2.py', args, ctx.env, log, ctx.report):
         _fail(f'{hero.key}: MUA2 converter failed', log)
+    limits = []
+    if ctx.refine_max_calls is not None: limits += ['--max-calls', ctx.refine_max_calls]
+    if ctx.refine_max_seconds is not None: limits += ['--max-seconds', ctx.refine_max_seconds]
     for refine in recipe.get('refine') or []:
-        if run('mua2', root, 'refine_bind.py', ['--character', hero.key, *refine], ctx.env, log, ctx.report):
+        if run('mua2', root, 'refine_bind.py', ['--character', hero.key, *refine, *limits], ctx.env, log, ctx.report):
             _fail(f'{hero.key}: MUA2 bind refinement failed', log)
     if run('mua2', root, 'validate_mua2.py', ['--character', hero.key, '--no-renders'], ctx.env, log, ctx.report):
         _fail(f'{hero.key}: MUA2 validator failed', log)

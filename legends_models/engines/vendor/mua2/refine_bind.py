@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from scipy.sparse import coo_matrix
+from refinement_control import RefinementControl,RefinementStopped
 from model import Model,pose
 from validate import edges,chain_distance
 from convert_mua2 import ROOT,PORT,Source,atlas,resolve,GAME,write_candidate
@@ -19,7 +20,8 @@ def coat_side(target,coat,pos,weights,indices):
     bm={b.get(4):i for i,b in enumerate(target.bones) if b.get(4)>=0}
     return coat_one_leg([target.names[bm[i]] for i in target.palette],coat,pos[:,1]>=0,weights,indices)
 
-def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_regularize=False,reset_bind=False,seed_weights=None,layer_lock=False,couple_layers=False,layer_weight=None,coat_one_leg=False):
+def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_regularize=False,reset_bind=False,seed_weights=None,layer_lock=False,couple_layers=False,layer_weight=None,coat_one_leg=False,max_calls=120,max_seconds=180.,rising_calls=5,progress_every=3):
+    control=RefinementControl(char,lambda event:print(json.dumps(event,allow_nan=False),flush=True),max_calls,max_seconds,rising_calls,progress_every)
     out=ROOT/'evidence'/char;manifest=json.loads((out/'conversion.json').read_text());target=Model(manifest['template']);current=Model(manifest['candidate'])
     source=Source(manifest['source'],target);old=dict(np.load(out/'fit/fit.npz'))
     if seed_weights:
@@ -186,7 +188,6 @@ def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_r
         else:gradient=project(disp_backward(grad)).ravel()
         calls+=1;last=dict(calls=calls,loss=loss,max_stock_edge_fraction=max(ers),max_stock_chain_fraction=max(crs),min_bind_face_orientation=min_orientation,seconds=time.monotonic()-start,
                            layer_crossings=layer_state[0],layer_min_offset_ratio=layer_state[1])
-        if calls==1 or calls%25==0:print(json.dumps(last),flush=True)
         return loss,gradient
     baseline=out/'weight-constraints-only.IGB'
     base=Model(baseline).pos[rep].astype(float) if baseline.exists() else p0
@@ -207,30 +208,46 @@ def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_r
         logits0=np.log(np.maximum(weights,1e-12));x0=np.r_[x0,logits0.ravel()]
         wlo=np.full_like(logits0,-30.);whi=np.full_like(logits0,30.);wlo[locked]=logits0[locked];whi[locked]=logits0[locked]
         bounds+=list(zip(wlo.ravel(),whi.ravel()))
-    initial_loss,initial_grad=fun(x0);eligible=np.flatnonzero(np.repeat(~locked,3))
-    if joint_weights:eligible=np.r_[eligible,n*3+np.flatnonzero(np.repeat(~locked,4))]
-    check_ids=eligible[np.argsort(np.abs(initial_grad[eligible]))[-3:]];gradient_errors=[]
-    for ix in check_ids:
-        xx=x0.copy();step=1e-5;xx[ix]+=step;plus=fun(xx)[0];xx[ix]-=2*step;minus=fun(xx)[0]
-        numeric=(plus-minus)/(2*step);error=abs(numeric-initial_grad[ix])/max(1,abs(numeric),abs(initial_grad[ix]));gradient_errors.append(float(error))
-    if max(gradient_errors)>1e-3:raise ValueError('Bind objective gradient check failed: '+str(gradient_errors))
-    def stop_when_margin(x):
-        if (out/'stop-fitting.flag').exists():raise StopIteration
+    # Keep the baseline feasible too: SciPy otherwise clips only its own first call.
+    x0=np.clip(x0,np.array(bounds)[:,0],np.array(bounds)[:,1])
+    def tracked(x,probe=False):
+        if (out/'stop-fitting.flag').exists():control.stop('stop_flag')
         deadline=os.environ.get('MUA2_FIT_DEADLINE')
-        if deadline and datetime.datetime.now(datetime.timezone.utc)>=datetime.datetime.fromisoformat(deadline):
-            raise StopIteration
+        if deadline and datetime.datetime.now(datetime.timezone.utc)>=datetime.datetime.fromisoformat(deadline):control.stop('deadline')
+        control.before_call()
+        loss,gradient=fun(x)
+        control.after_call(x,loss,last,probe=probe)
+        if not np.isfinite(gradient).all():control.stop('nonfinite_gradient')
+        return loss,gradient
+    completed_iterations=0
+    def stop_when_margin(x):
+        nonlocal completed_iterations
+        completed_iterations+=1
         orientation_ok=not surface_regularize or last['min_bind_face_orientation']>=.2
         layers_ok=lambda:checks is None or not LAYER_WEIGHT or last['layer_crossings']==0
         if calls>=25 and orientation_ok and last['max_stock_edge_fraction']<=.99 and last['max_stock_chain_fraction']<=.99 and layers_ok():
-            fun(x)
-            if (not surface_regularize or last['min_bind_face_orientation']>=.2) and last['max_stock_edge_fraction']<=.99 and last['max_stock_chain_fraction']<=.99 and layers_ok():raise StopIteration
-    result=minimize(fun,x0,jac=True,callback=stop_when_margin,method='L-BFGS-B',bounds=bounds,options={'maxiter':iterations,'maxcor':10,'ftol':1e-10,'gtol':1e-7})
-    fun(result.x);p=result.x[:n*3].reshape(n,3)
+            tracked(x)
+            if (not surface_regularize or last['min_bind_face_orientation']>=.2) and last['max_stock_edge_fraction']<=.99 and last['max_stock_chain_fraction']<=.99 and layers_ok():control.stop('stock_margin')
+    gradient_errors=[];result=None
+    try:
+        initial_loss,initial_grad=tracked(x0);eligible=np.flatnonzero(np.repeat(~locked,3))
+        if joint_weights:eligible=np.r_[eligible,n*3+np.flatnonzero(np.repeat(~locked,4))]
+        check_ids=eligible[np.argsort(np.abs(initial_grad[eligible]))[-3:]]
+        for ix in check_ids:
+            xx=x0.copy();step=1e-5;xx[ix]+=step;plus=tracked(xx,probe=True)[0];xx[ix]-=2*step;minus=tracked(xx,probe=True)[0]
+            numeric=(plus-minus)/(2*step);error=abs(numeric-initial_grad[ix])/max(1,abs(numeric),abs(initial_grad[ix]));gradient_errors.append(float(error))
+        if gradient_errors and max(gradient_errors)>1e-3:raise ValueError('Bind objective gradient check failed: '+str(gradient_errors))
+        result=minimize(tracked,x0,jac=True,callback=stop_when_margin,method='L-BFGS-B',bounds=bounds,options={'maxiter':iterations,'maxfun':max_calls,'maxcor':10,'ftol':1e-10,'gtol':1e-7})
+    except RefinementStopped:
+        pass
+    if control.best_x is None:raise ValueError('Bind refinement stopped before a finite feasible objective: '+str(control.stop_reason))
+    control.stop_reason=control.stop_reason or 'optimizer_finished';control.progress()
+    best_x=control.best_x;p=best_x[:n*3].reshape(n,3);last=control.best_metrics
     if layer_lock:p=base+project(p-base)
     elif plan is not None:p=base+disp_forward(p-base)
     old['pos']=p[group];old['indices']=indices[group]
     if joint_weights:
-        logits=project(result.x[n*3:].reshape(n,4));z=np.exp(logits-logits.max(1,keepdims=True));ww=z/z.sum(1,keepdims=True)
+        logits=project(best_x[n*3:].reshape(n,4));z=np.exp(logits-logits.max(1,keepdims=True));ww=z/z.sum(1,keepdims=True)
         old['weights']=(tie.forward(ww) if plan is not None else ww)[group]
     elif plan is not None:old['weights']=weights[group]
     repair=None
@@ -250,7 +267,7 @@ def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_r
         D,repair=repair_crossings(to_dense(indices,final_w,P),check_plan(found,group),posed_fn,rounds=0)
         repair['applied']=False
     elif layer_lock:old['weights']=weights[group]
-    report={**last,'gradient_check_relative_errors':gradient_errors,'iterations':int(result.nit),'message':str(result.message),'groups':n,'frames':nf,'locked_groups':int(locked.sum()),'coordinate_bound':bound,
+    report={**last,'calls':control.calls,'seconds':control.elapsed,'best_call':control.best_call,'best_loss':control.best_loss,'last_loss':control.loss,'stop_reason':control.stop_reason,'max_calls':max_calls,'max_seconds':max_seconds,'gradient_check_relative_errors':gradient_errors,'gradient_check_complete':len(gradient_errors)==len(check_ids) if 'check_ids' in locals() else False,'iterations':int(result.nit) if result is not None else completed_iterations,'message':str(result.message) if result is not None else control.stop_reason,'groups':n,'frames':nf,'locked_groups':int(locked.sum()),'coordinate_bound':bound,
             'maximum_bind_displacement':float(np.linalg.norm(p-base,axis=1).max()),'rms_bind_displacement':float(np.sqrt(((p-base)**2).sum(1).mean())),
             'maximum_incremental_displacement':float(np.linalg.norm(p-p0,axis=1).max()),'all_frames':samples<=0,'joint_weights':joint_weights,'surface_regularize':surface_regularize,'reset_bind':reset_bind,'seed_weights':str(seed_weights) if seed_weights else None,
             'layer_lock':layer_lock,'paired_inner_outer_groups':len(layer_pairs),'motion_groups':len(motion_count),
@@ -264,4 +281,4 @@ def refine(char,iterations=120,samples=24,bound=2.,joint_weights=False,surface_r
     print(json.dumps(report,indent=2))
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--character',required=True,choices=['gambit','wolverine']);ap.add_argument('--iterations',type=int,default=120);ap.add_argument('--samples',type=int,default=24);ap.add_argument('--bound',type=float,default=2.);ap.add_argument('--joint-weights',action='store_true');ap.add_argument('--surface-regularize',action='store_true');ap.add_argument('--reset-bind',action='store_true');ap.add_argument('--seed-weights',type=Path);ap.add_argument('--layer-lock',action='store_true');ap.add_argument('--couple-layers',action='store_true',help='tie inner cloth shells to their outer shell (layers.py)');ap.add_argument('--layer-weight',type=float,help='offset-preserving constraint weight (0: tie only; a second pass can add it)');ap.add_argument('--coat-one-leg',action='store_true',help='coat rows follow one leg (the side they hang on), as the stock coat does');a=ap.parse_args();refine(a.character,a.iterations,a.samples,a.bound,a.joint_weights,a.surface_regularize,a.reset_bind,a.seed_weights,a.layer_lock,a.couple_layers,a.layer_weight,a.coat_one_leg)
+    ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--character',required=True,choices=['gambit','wolverine']);ap.add_argument('--iterations',type=int,default=120);ap.add_argument('--samples',type=int,default=24);ap.add_argument('--bound',type=float,default=2.);ap.add_argument('--joint-weights',action='store_true');ap.add_argument('--surface-regularize',action='store_true');ap.add_argument('--reset-bind',action='store_true');ap.add_argument('--seed-weights',type=Path);ap.add_argument('--layer-lock',action='store_true');ap.add_argument('--couple-layers',action='store_true',help='tie inner cloth shells to their outer shell (layers.py)');ap.add_argument('--layer-weight',type=float,help='offset-preserving constraint weight (0: tie only; a second pass can add it)');ap.add_argument('--coat-one-leg',action='store_true',help='coat rows follow one leg (the side they hang on), as the stock coat does');ap.add_argument('--max-calls',type=int,default=120);ap.add_argument('--max-seconds',type=float,default=180.);ap.add_argument('--rising-calls',type=int,default=5);ap.add_argument('--progress-every',type=int,default=3);a=ap.parse_args();refine(a.character,a.iterations,a.samples,a.bound,a.joint_weights,a.surface_regularize,a.reset_bind,a.seed_weights,a.layer_lock,a.couple_layers,a.layer_weight,a.coat_one_leg,a.max_calls,a.max_seconds,a.rising_calls,a.progress_every)

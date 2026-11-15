@@ -31,7 +31,7 @@ class Plan(unittest.TestCase):
         self.assertEqual(g['tier'], 'community')
         self.assertIn({'tier': 'mua2', 'reason': 'MUA2 conversion not ready: the coat lining shows through the coat'}, g['skipped'])
         j = row(rows, 'phoenix')         # MUA1 Jean: loose-geometry rule passes the chain gate (layers.py)
-        self.assertEqual((j['tier'], j['source']), ('mua1', '12301'))
+        self.assertEqual((j['tier'], j['source']), ('mua2', '12302'))
         p = row(rows, 'profxastral')     # only the community pack is usable
         self.assertEqual(p['tier'], 'community')
 
@@ -52,7 +52,7 @@ class Plan(unittest.TestCase):
     def test_strict_keeps_only_owner_accepted(self):
         rows = plan.make_plan('upgraded', all_available, strict=True)
         chosen = {r.hero: r.as_dict() for r in rows if r.chosen}
-        self.assertEqual(set(chosen), {'wolverine'})
+        self.assertEqual(set(chosen), {'wolverine', 'iceman', 'phoenix'})
         self.assertTrue(chosen['wolverine']['accepted'])
         rows = plan.make_plan('upgraded', all_available, strict=True, skip=('mua2',),
                               costumes=plan.parse_costumes(['wolverine=mua1:0301']))
@@ -139,3 +139,29 @@ class Roster(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ApprovedMua2(unittest.TestCase):
+    def test_upgraded_prefers_approved_jean_and_iceman(self):
+        from legends_models import roster, plan
+        heroes = [roster.BY_KEY[k] for k in ('phoenix', 'iceman')]
+        rows = plan.make_plan('upgraded', lambda *a: (True, 'owned'), heroes=heroes, strict=True)
+        self.assertEqual([(r.hero, r.chosen.tier, r.chosen.source) for r in rows],
+                         [('phoenix', 'mua2', '12302'), ('iceman', 'mua2', '0801')])
+        rows = plan.make_plan('upgraded', lambda tier, *a: (tier != 'mua2', 'owned'), heroes=heroes)
+        self.assertEqual([r.chosen.tier for r in rows], ['community', 'mua1'])
+
+    def test_both_approved_jean_costumes_can_be_selected(self):
+        from legends_models import roster, plan
+        for source in ('12301', '12302'):
+            rows = plan.make_plan('upgraded', lambda *a: (True, 'owned'), heroes=[roster.BY_KEY['phoenix']],
+                                  costumes=plan.parse_costumes(['phoenix=mua2:' + source]), strict=True)
+            self.assertEqual((rows[0].chosen.tier, rows[0].chosen.source), ('mua2', source))
+
+
+class PhoenixSafety(unittest.TestCase):
+    def test_upgraded_does_not_offer_stretchy_mua1_jean(self):
+        rows = plan.make_plan('upgraded', only('mua1', 'community'), heroes=[roster.BY_KEY['phoenix']])
+        self.assertEqual(rows[0].chosen.tier, 'community')
+        self.assertTrue(any(tier == 'mua1' and 'arm' in reason for tier, reason in rows[0].skipped))
+        self.assertFalse(any(c.tier == 'mua1' for c in rows[0].fallbacks))

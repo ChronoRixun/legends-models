@@ -92,6 +92,13 @@ class EveryOfferedCostumeIsNamed(unittest.TestCase):
                     self.assertNotIn('costume', row['label'].lower(), f'{h.key} {t} {row}')
                     self.assertNotIn('model ' + row['id'], row['label'], f'{h.key} {t} {row}')
 
+    def test_unresolved_jean_localization_has_readable_look_labels(self):
+        hero = roster.hero('phoenix')
+        names = {'mua2': {'12301': dict(name='!BADREF:@SKINS@12301', kind='hero')}}
+        row = costumes.info(hero, 'mua2', ['12301'], names=names)[0]
+        self.assertEqual(row['label'], 'Green and gold')
+        self.assertEqual(costumes.info(hero, 'mua2', ['12302'])[0]['label'], 'Masked yellow and green')
+
     def test_story_models(self):
         self.assertEqual(costumes.info(roster.hero('psylocke'), 'mua1', ['3005'])[0]['label'], 'Dark Psylocke')
         self.assertEqual(costumes.info(roster.hero('nightcrawler'), 'mua1', ['4701'])[0]['label'],

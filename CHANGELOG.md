@@ -4,6 +4,41 @@ legends-models' version is `__version__` in `legends_models/__init__.py` (and `p
 `vX.Y.Z` for a normal release, `vX.Y.Z-beta.N` / `vX.Y.Z-rc.N` for a pre-release of the same version (the release
 notes come from the `## vX.Y.Z` section below; a pre-release needs it).
 
+## v0.4.0 (2026-11-14)
+
+### Added
+- Upgraded mode offers the exact owner-approved MUA2 Iceman 0801 and Jean/Phoenix
+  12301 and arm-repaired 12302 outputs. Jean defaults to 12302. Reviewed private
+  bundles must be provisioned separately into the shared work cache; game assets
+  are never included in the tool download. MUA2 remains ahead of MUA1 when available.
+- Hash-bound accepted output reuse before the ordinary cache, including Rebuild.
+  Reports retain the current numeric result separately from exact owner approval.
+- Offline provisioning with pinned actor, report and input-manifest receipts,
+  atomic staging and a public-package guard against private bundle leakage.
+- Bounded bind refinement and live progress for fresh supported conversions,
+  preserving the existing fitter objective, layer coupling and recipes.
+
+### Fixed
+- Scan/plan offer the reuse-only Jean/Iceman MUA2 choices only after a complete
+  local bundle passes integrity and catalogue checks. Missing bundles now plan
+  the same fallback that Build writes, preventing repeated launcher Update prompts.
+  Existing approved costumes also compare the small owned source actor and stock
+  template hashes; unchanged approved inputs keep exact reuse, while changed
+  inputs retain the supported fresh-fit path.
+- Upgraded no longer offers the MUA1 Jean/Phoenix 12301 fresh fit: combat
+  arm and glove distortion can pass its old global gate. Without an available
+  approved MUA2 bundle, Jean falls back to Community until that fit is repaired.
+- Cancel checks before conversion, between characters and tier attempts, after a
+  converter exits, and before publication. A cancelled failure cannot start a
+  fallback. Publication already underway finishes consistently (API 1 unchanged).
+
+Existing MUA1 Phoenix fresh fits are separate from the approved MUA2 outputs;
+updating the tool alone does not replace installed mods. Build/Rebuild the models
+with owned matching inputs and the private accepted cache provisioned. The public tool cannot yet reproduce these approved MUA2 outputs from clean
+owned inputs alone; private provisioning is required. Missing or
+changed accepted inputs are reported and safely fall back; they never silently
+produce a new owner-approved model. Launcher minimum stays 0.5.0-0.
+
 ## v0.3.0 (2026-11-05)
 
 The first stable release, published with Ultimate Legends 0.5.0 (the first launcher with the Character models page).

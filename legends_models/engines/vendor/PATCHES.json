@@ -83,5 +83,17 @@
   "file": "mua2/validate.py",
   "old": "import argparse,json",
   "new": "import argparse,json,os"
+ },
+ {
+  "file": "mua2/refine_bind.py",
+  "old": "unbounded objective calls; sparse log-only progress; final optimizer state always saved",
+  "new": "from refinement_control import RefinementControl,RefinementStopped",
+  "reason": "Bound every objective/line-search call by divergence, elapsed time and call count; emit live progress, keep lowest finite feasible objective, independently validate afterward. Objective math unchanged."
+ },
+ {
+  "file": "mua2/refinement_control.py",
+  "old": "new helper",
+  "new": "class RefinementControl:",
+  "reason": "Small stdlib safety controller and structured progress emitter, tested on synthetic histories."
  }
 ]

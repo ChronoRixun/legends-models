@@ -116,6 +116,10 @@ def guard_bundle(folder: Path, sampler: bool):
     Python runtime's own DLLs and .pyd are binaries by nature and are not looked at; the bundled sampler is ours,
     built by CI from tools/sample_enbaya.cpp)."""
     from check_no_game_content import sniff_magic
+    from private_bundle_guard import check_folder
+    private_errors = check_folder(folder)
+    if private_errors:
+        raise SystemExit('private accepted content in public bundle: ' + '; '.join(private_errors[:10]))
     data = folder / '_internal' / 'legends_models'
     allowed = {data / 'bin' / 'sample_enbaya.exe'} if sampler else set()
     bad = []
@@ -134,11 +138,16 @@ def guard_bundle(folder: Path, sampler: bool):
 
 
 def make_zip(folder: Path, archive: Path) -> int:
+    from private_bundle_guard import check_zip
     tmp = archive.with_suffix('.zip.partial')
     files = sorted(p for p in folder.rglob('*') if p.is_file())
     with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for p in files:
             z.write(p, p.relative_to(folder).as_posix())
+    errors = check_zip(tmp)
+    if errors:
+        os.remove(str(tmp.absolute()))
+        raise SystemExit('private accepted content in public ZIP: ' + '; '.join(errors[:10]))
     os.replace(tmp, archive)
     return len(files)
 

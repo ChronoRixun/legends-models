@@ -2,7 +2,7 @@
 """Run the vendored research converters.
 
 Each engine (vendor/<engine>) is the research workspace's tools folder, copied verbatim except for
-hard-coded research-PC paths (vendor/PATCHES.json) and the layered-cloth / loose-geometry rules
+hard-coded research-PC paths, bounded bind refinement (vendor/PATCHES.json), and the layered-cloth / loose-geometry rules
 (vendor/_shared/layers.py, wired into the MUA1/MUA2 fitters and validators). The research scripts locate their workspace as
 `Path(__file__).parents[1]` and use cwd-relative paths, so each engine is materialised into
 <work>/<engine>/tools and run there in its own Python process: identical behaviour, no module-name
@@ -11,13 +11,17 @@ clashes between the four copies of model.py / validate.py, and nothing written o
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import queue
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
-from .. import __version__
+from .. import __version__, cancellation
 from ..errors import MISSING_INPUT, ToolError
 
 VENDOR = Path(__file__).resolve().parent / 'vendor'
@@ -94,7 +98,7 @@ def materialise(engine, work, needs_sampler=True):
 
 
 def run(engine, root, script, args, env=None, log=None, report=None, driver=False, timeout=None):
-    """python -B <tools|drivers>/<script> args, cwd=<work>/<engine>. Output goes to `log`."""
+    """Log every line and relay structured engine progress while the child runs."""
     path = (DRIVERS if driver else Path(root) / 'tools') / script
     cmd = [python_exe(), '-B', str(path), *map(str, args)]
     full_env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1', PYTHONIOENCODING='utf-8', **(env or {}))
@@ -107,13 +111,49 @@ def run(engine, root, script, args, env=None, log=None, report=None, driver=Fals
     with log.open('a', encoding='utf-8') as out:
         out.write('\n$ ' + ' '.join(cmd) + '\n')
         out.flush()
-        proc = subprocess.Popen(cmd, cwd=root, env=full_env, stdout=out, stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(cmd, cwd=root, env=full_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, encoding='utf-8', errors='replace', bufsize=1)
         _bind_to_job(proc)
+        lines = queue.Queue()
+        def read_output():
+            try:
+                for line in proc.stdout:
+                    lines.put(line)
+            finally:
+                lines.put(None)
+        reader = threading.Thread(target=read_output, name='legends-engine-log', daemon=True)
+        reader.start()
+        deadline = time.monotonic() + timeout if timeout is not None else None
         try:
-            return proc.wait(timeout=timeout)
+            while True:
+                cancellation.check()
+                remaining = deadline - time.monotonic() if deadline is not None else None
+                if remaining is not None and remaining <= 0:
+                    raise subprocess.TimeoutExpired(cmd, timeout)
+                try:
+                    line = lines.get(timeout=min(.2, remaining) if remaining is not None else .2)
+                except queue.Empty:
+                    continue
+                if line is None:
+                    return proc.wait(timeout=max(0., deadline - time.monotonic()) if deadline is not None else None)
+                out.write(line)
+                out.flush()
+                if report and script == 'refine_bind.py':
+                    try:
+                        data = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(data, dict) and data.get('event') == 'progress' and data.get('stage') == 'refine_bind':
+                        fields = ('stage', 'hero', 'tier', 'call', 'max_calls', 'done', 'total', 'loss', 'best_loss',
+                                  'elapsed', 'max_seconds', 'best_call', 'stop_reason', 'message')
+                        report.emit('progress', engine=engine, script=script,
+                                    **{k: data[k] for k in fields if k in data})
         finally:
             if proc.poll() is None:
                 proc.kill()
+            proc.wait()
+            reader.join()
+            proc.stdout.close()
 
 
 _JOB = None

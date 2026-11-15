@@ -8,7 +8,7 @@ import re
 from importlib import resources
 from pathlib import Path
 
-from . import __version__, community, gate, heads as headsmod, packs, plan as planmod, portbuild, results, roster
+from . import __version__, accepted as accepted_cache, cancellation, community, gate, heads as headsmod, packs, plan as planmod, portbuild, results, roster
 from .engines.tiers import ADAPTERS, Candidate, Context
 from .errors import DOWNLOAD, MISSING_INPUT, NOTHING_WRITTEN, OK, PARTIAL, ToolError
 
@@ -133,7 +133,8 @@ def _apply_materials(ctx, hero, choice, cand, result, report):
         return cand, result, {'skipped': str(e)}
     if not summary['invariant']['pass'] or not summary['steps']:
         return cand, result, {'skipped': 'invariant failed' if summary['steps'] else 'no maps', **summary}
-    out = Path(cand.path).with_name(Path(cand.path).stem + '-materials' + Path(cand.path).suffix)
+    out = ctx.work / 'materials' / hero.key / (result['candidate_sha256'] + '-materials.IGB')
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)
     result = dict(result, gated_sha256=result['candidate_sha256'], candidate_sha256=gate.sha256(out))
     cand.path = out
@@ -164,6 +165,7 @@ def heads_entry(hero, choice, ctx, report):
 
 def run_build(scan_result, rows, ctx, game_dir, pack, mode, report, keep_existing=False, enable=True, rebuild=False,
               layout='pack'):
+    cancellation.check()
     mods = packs.check_output_location(game_dir, [ctx.mua1, ctx.mua2])
     migrated = migrate_folder_names(mods) if mods.is_dir() else []
     for old, new in migrated:
@@ -172,6 +174,7 @@ def run_build(scan_result, rows, ctx, game_dir, pack, mode, report, keep_existin
     produced, refused = {}, {}
     todo = [r for r in rows if r.chosen]
     for i, row in enumerate(todo):
+        cancellation.check()
         hero = roster.BY_KEY[row.hero]
         report.progress(i, len(todo), f'{hero.name}: {row.chosen.tier}', hero=hero.key)
         attempts = []
@@ -184,17 +187,27 @@ def run_build(scan_result, rows, ctx, game_dir, pack, mode, report, keep_existin
                                                                         error='no head files: ' + '; '.join(entry['head_notes']))])
             continue
         for choice in [row.chosen] + row.fallbacks:
+            cancellation.check()
             report.stage('convert', f'{hero.name} from {roster.TIER_NAMES[choice.tier]} ({choice.source})',
                          hero=hero.key, tier=choice.tier, source=choice.source)
             try:
-                k = results.key(hero, choice, ctx)
-                hit = None if rebuild else results.load(ctx, k)
-                if hit:
+                cand, changed_input_key = accepted_cache.lookup(hero, choice, ctx, accepted)
+                k = results.key(hero, choice, ctx, changed_input_key)
+                hit = None if cand or rebuild else results.load(ctx, k)
+                if cand:
+                    result = cand.gate
+                elif hit:
                     path, result, notes, extras = hit
                     cand = Candidate(path, None, 'cached', None, notes + ['cached result (same inputs)'], extra_files=extras)
-                    report.emit('cache', hero=hero.key, tier=choice.tier, hit=True)
+                    report.emit('cache', hero=hero.key, tier=choice.tier, hit=True, reason='identical_inputs', refit=False,
+                                message='Reusing a validated result for identical inputs')
                 else:
+                    report.emit('cache', hero=hero.key, tier=choice.tier, hit=False, refit=True,
+                                reason='inputs_changed' if changed_input_key else 'rebuild_requested' if rebuild else 'no_valid_result',
+                                message='Fitting: accepted input hashes changed and no validated result matches' if changed_input_key else
+                                        'Fitting again: rebuild requested' if rebuild else 'Fitting: no validated result for these inputs')
                     cand = ADAPTERS[choice.tier](hero, choice, ctx)
+                    cancellation.check()
                     result = cand.gate if cand.kind == 'texture-only' else gate.check_report(
                         cand.report, cand.path, require_layers=choice.tier in ('mua1', 'mua2'))
                     if cand.kind == 'texture-only':
@@ -202,10 +215,11 @@ def run_build(scan_result, rows, ctx, game_dir, pack, mode, report, keep_existin
                     if cand.path and Path(cand.path).is_file():
                         cand.path = results.store(ctx, k, cand, result, require_layers=choice.tier in ('mua1', 'mua2'))
             except ToolError as e:
+                cancellation.check()
                 attempts.append(dict(tier=choice.tier, source=choice.source, error=str(e).splitlines()[0], code=e.code))
                 report.warn(f'{hero.name}: {choice.tier} could not run: {str(e).splitlines()[0]}', hero=hero.key)
                 continue
-            if not result['numeric_pass']:
+            if not result['numeric_pass'] and not result.get('owner_accepted'):
                 attempts.append(dict(tier=choice.tier, source=choice.source, gate_failures=result['failures'][:8],
                                      notes=cand.notes))
                 report.emit('gate', hero=hero.key, tier=choice.tier, passed=False, failures=result['failures'][:8])
@@ -213,15 +227,24 @@ def run_build(scan_result, rows, ctx, game_dir, pack, mode, report, keep_existin
             materials_info = None
             if ctx.materials and choice.tier == 'mua1':
                 cand, result, materials_info = _apply_materials(ctx, hero, choice, cand, result, report)
+                # Cosmetic options produce new bytes: exact-hash approval cannot follow them.
+                if result.get('owner_accepted') and result['candidate_sha256'] not in accepted:
+                    result = {k: v for k, v in result.items() if k not in ('owner_accepted', 'reason', 'acceptance_reason')}
+                if not result['numeric_pass'] and not result.get('owner_accepted'):
+                    attempts.append(dict(tier=choice.tier, source=choice.source, gate_failures=result['failures'][:8], notes=cand.notes))
+                    report.emit('gate', hero=hero.key, tier=choice.tier, passed=False, failures=result['failures'][:8])
+                    continue
             rec = accepted.get(result['candidate_sha256'])
             produced[hero.key] = dict(name=hero.name, skin=hero.skin, tier=choice.tier, source=choice.source,
                                       file=f'Actors/{hero.skin}.IGB', sha256=result['candidate_sha256'],
                                       gate='texture-only invariants (mesh/skeleton/bind/bounds byte-identical)'
-                                      if choice.tier == 'sharpen' else 'numeric pass (stock-relative, six clips)',
+                                      if choice.tier == 'sharpen' else ('owner accepted exact output hash' if result.get('owner_accepted') else 'numeric pass (stock-relative, six clips)'),
                                       owner_accepted=bool(rec), acceptance=rec, notes=cand.notes,
                                       fallback_from=attempts or None, path=str(cand.path), materials=materials_info,
                                       extras={rel: str(f) for rel, f in cand.extra_files.items()})
-            report.emit('gate', hero=hero.key, tier=choice.tier, passed=True, owner_accepted=bool(rec))
+            report.emit('gate', hero=hero.key, tier=choice.tier, passed=True, owner_accepted=bool(rec),
+                        numeric_pass=result['numeric_pass'], reason=result.get('reason', 'current_numeric_gate_pass'),
+                        acceptance_reason=result.get('acceptance_reason'), failures=result['failures'])
             if getattr(ctx, 'heads', True):
                 add_heads(produced[hero.key], hero, choice, ctx, report)
             break
@@ -234,6 +257,7 @@ def run_build(scan_result, rows, ctx, game_dir, pack, mode, report, keep_existin
         code = DOWNLOAD if codes == {DOWNLOAD} else MISSING_INPUT if codes == {MISSING_INPUT} else NOTHING_WRITTEN
         return code, dict(pack=pack, written=False, characters={}, refused=refused, stock=stock,
                                      message='every requested character was refused; previous pack left untouched')
+    cancellation.check()
     if layout == 'per-hero':
         return publish_per_hero(mods, pack, mode, produced, refused, stock, ctx, keep_existing, enable)
     carried = {}

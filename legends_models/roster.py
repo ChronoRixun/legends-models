@@ -30,6 +30,7 @@ class Recipe:
     steps: tuple = ()          # engine steps beyond the default (documented, see engines/)
     accepted_sources: tuple = ()  # costumes whose output passed the FULL gate (owner-accepted)
     player_line: str = ''  # plain text for launcher note/reason; never the technical note
+    reuse_only: bool = False  # no fresh converter: offer only a verified local accepted bundle
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,8 @@ HEROES = [
        R('xml2', '1301', 'numeric', 'mesh-only 0.998 scale', player_line='XML2 model'),
        R('community', 'Ultimate XML1', 'numeric', 'safe candidate', ('Original', 'Ultimate XML1'), player_line='Community model')),
     _h('iceman', 'Iceman', '14801', 'x1_08_iceman',
+       R('mua2', '0801', 'accepted', 'exact owner-approved bundle only; no fresh converter recipe',
+         accepted_sources=('0801',), player_line='MUA2 model', reuse_only=True),
        R('mua1', '0801', 'numeric', 'numeric pass, native review pending', player_line='MUA1 model'),
        R('xml2', '0801', 'numeric', 'mesh-only 0.998 scale', player_line='XML2 model'),
        R('community', 'Ultimate XML1', 'numeric', 'chain-refined safe candidate', ('Original', 'Ultimate XML1'),
@@ -94,7 +97,9 @@ HEROES = [
        R('community', 'Ultimate XML1', 'numeric', 'chain-refined safe candidate', ('Original', 'Ultimate XML1'),
          ('chain_refine',), player_line='Community model')),
     _h('phoenix', 'Jean Grey (Phoenix)', '14201', '02_phoenix',
-       R('mua1', '12301', 'numeric', 'long hair: loose-geometry falloff onto the back (layers.py); chain 8.36 vs stock 8.56', player_line='MUA1 model'),
+       R('mua2', '12302', 'accepted', 'exact owner-approved bundles only; arm-repaired 12302 default',
+         alternatives=('12301', '12302'), accepted_sources=('12301', '12302'), player_line='MUA2 model', reuse_only=True),
+       R('mua1', '12301', 'failed', 'owner-reported gumby; regional forearm strain reaches 21.93 percent across six stress clips despite the global numeric pass', player_line='MUA1 conversion not ready: arm and glove distortion'),
        R('xml2', '0201', 'numeric', 'vertex-envelope fit', player_line='XML2 model'),
        R('community', 'Ultimate XML1', 'numeric', 'chain-refined safe candidate', ('Phoenix', 'Ultimate XML1'),
          ('chain_refine',), player_line='Community model')),
