@@ -271,7 +271,8 @@ class AcceptedBuild(AcceptedFixture):
         candidate, force = accepted.lookup(self.hero, self.choice, ctx, {self.record['output_sha256']: self.record})
         self.assertFalse(force)
         self.assertEqual(candidate.path.read_bytes(), b'accepted actor')
-        self.assertEqual(folder, candidate.path.parent)
+        # Compare resolved paths: GitHub runners' TEMP can be an 8.3 short name (RUNNER~1).
+        self.assertEqual(folder.resolve(), candidate.path.parent.resolve())
         bad = dict(self.record, output_sha256='0'*64)
         with self.assertRaises(ValueError):
             accepted.seed(self.hero, self.choice, ctx, bad, self.bundle / 'actor.IGB',
