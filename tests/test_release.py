@@ -66,7 +66,7 @@ class Tags(unittest.TestCase):
         self.assertFalse(notes.startswith('Beta'))
         self.assertIn(f'legends-models v{v} (launcher API 1', notes)
         self.assertIn('Ultimate Legends 0.5.0 (or a beta of it) or newer', notes)
-        self.assertIn('### Added', notes)
+        self.assertIn('### ', notes)  # the version's changelog section (Added, Fixed, ...) made it in
 
     def test_the_default_min_launcher_admits_the_launcher_betas_for_every_tag(self):
         import freeze  # tools/freeze.py: importable without PyInstaller or NumPy
