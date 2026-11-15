@@ -20,8 +20,12 @@ It is a converter, not a download of models: every model file is made on your co
 downloaded from the community author's own links (or his backup copies). It writes an ordinary mod folder for the XML2 Fix mod loader;
 remove the folder (or switch it off in the launcher's Mods tab) and the stock models are back.
 
-> **Status: 0.3.0, the first stable release.** The Ultimate Legends launcher's Character models page (launcher
+> **Status: 0.4.0.** The Ultimate Legends launcher's Character models page (launcher
 > 0.5.0 or newer) installs and drives it on both update channels; it also works from the command line.
+> Jean/Phoenix's MUA1 fit is disabled in Upgraded because of arm distortion. Her
+> fallback is Community. Exact approved MUA2 Jean/Iceman reuse requires separately
+> provisioned private bundles; this download contains no model files or saved fits.
+> See [private provisioning](ACCEPTED-BUNDLES.md).
 
 ## What this project ships, and what it never ships
 
@@ -159,6 +163,7 @@ legends-models verify --port "C:\Legends-classic" --pack Models-Upgraded
 legends-models remove --port "C:\Legends-classic" --pack Models-Upgraded
 ```
 
+- With all three install paths supplied explicitly, install scanning does not search other drives.
 - `--mua1 / --mua2` point at the installs if Steam's library list does not find them. MUA1 may be the 2006 release
   (loose `actors\*.igb`) or the 2016 release (`actors.bin`).
 - `--hero NAME` (repeatable) limits a build; other characters already in the pack are kept.
@@ -232,3 +237,8 @@ Community archives need UnRAR, 7-Zip or Windows' own `tar.exe`.
 MIT (see [`LICENSE`](LICENSE)). Credits for community skins are in
 [`legends_models/data/community-credits.md`](legends_models/data/community-credits.md) and are copied into every
 pack that uses them.
+
+Refinement is bounded by objective calls, elapsed time and rising loss, and keeps the best evaluated state. Exact owner-accepted outputs reuse a private input-hash-bound bundle before refitting, including on rebuild. See LAUNCHER-API.md for offline provisioning and progress events.
+
+For verified offline staging into the launcher's shared work root and the public-ZIP
+privacy check, see [ACCEPTED-BUNDLES.md](ACCEPTED-BUNDLES.md).

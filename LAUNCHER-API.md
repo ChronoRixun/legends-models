@@ -11,7 +11,7 @@ then replace, preserve the player's other load-order entries, credits visible). 
 2. Read stdout line by line: each line is one JSON object with an `event` field; the last line is `result` (or `error`).
 3. The exit code says how it ended: 0 ok, 10 partial (some heroes stayed stock), 11 nothing written, 3 missing input, 20 download/hash refusal (or a download needed under `--offline`), 30 verify mismatch, 31 verify: files intact but the port was rebuilt since (stale), 40 unsafe path refused, 2 usage, 1 bug, 130 cancelled.
 4. `build` writes one folder per converted hero (`<port>\mods\Community-Beast` for Community, `Upgraded-MUA2-Wolverine`, `Upgraded-MUA-Storm`, `Upgraded-Community-Beast` for Upgraded, ...; `--layout pack` = one folder) atomically per folder, sets `+<Folder>` lines in `mods\load-order.txt` (other legends-models groups are set to `-`); `remove --pack <group>` deletes the group's folders and lines.
-5. Kill the process to cancel (converter child processes sit in a kill-on-close job and die with it): staging folders start with `.` (the loader ignores them), are cleaned next run, and the previous pack stays as it was.
+5. For 0.4.0+, use the cooperative request described below. Cancellation before publication leaves the previous pack intact; cancellation after publication starts completes that publication. Forced process termination is safe during conversion, but must not be used as a publication transaction guarantee.
 
 ## Appearance selector -> commands
 
@@ -80,9 +80,9 @@ Every event: `{"event": ..., "api": 1, "t": seconds-since-start, ...}`.
 |---|---|---|
 | `plan` | `mode`, `rows[]` (see below) | first line of `build`: show the table before converting |
 | `stage` | `stage` (`convert`/`publish`), `message`, `hero`, `tier`, `source` | status text |
-| `progress` | `done`, `total`, `message`, `hero` | progress bar (heroes) |
+| `progress` | `done`, `total`, `message`, `hero`; staged refinement fields below | separate hero and objective-call progress |
 | `workspace` | `path` | the per-port private work folder in use |
-| `cache` | `hero`, `tier`, `hit` | a stored result for identical inputs was reused (re-gated; `--rebuild` disables) |
+| `cache` | `hero`, `tier`, `hit` | a stored result for identical inputs was reused; `reason`, `refit`, `owner_accepted`, `acceptance_reason` explain accepted reuse or fresh fitting (`--rebuild` disables only ordinary result caches) |
 | `engine` | `engine`, `script`, `log` | the converter process started; `log` is the full engine log path |
 | `download` | `archive`, `source` (`author`/`mirror`), `source_label` (`author's link`/`GitHub backup`; `backup mirror` for a non-GitHub `--mirror`), `bytes`, `sha256`, `character`, `costume`, `author_error` (mirror only: why the author's link failed) | community archive fetched and verified (`sha256` = the verified archive hash, the manifest's); show `source_label` in the Downloads tab |
 | `gate` | `hero`, `tier`, `passed`, `failures[]` or `owner_accepted` | per attempt; a failure moves to the next tier |
@@ -138,6 +138,72 @@ Usable recipes say `MUA2 conversion ready`, `<MUA1/XML2/Community> model`,
 or `Original model with sharper textures`. Existing status codes and JSON field shapes are unchanged;
 no API bump is required. `--verbose` writes technical recipe notes only to stderr, even with `--json`.
 
+### Live refinement progress (additive API 1 fields)
+
+Distinguish `progress` with `stage: "refine_bind"` from the existing hero-count events (which
+have no stage). `done`/`total` in a refinement event mean objective calls, not heroes or optimizer
+iterations: line-search and gradient-check calls also count. `call`/`max_calls` are the same counts;
+`elapsed`/`max_seconds` are seconds for the refinement, independent of the CLI event timestamp `t`.
+Keep the hero progress bar separate and show e.g. "Wolverine / MUA2 / bind refinement, call 6 of 120,
+42 s, best loss 50". Calls can finish early; do not assume the next event reaches `total`.
+
+The refiner emits on call 1, every 3 calls by default, and on termination. The parent relays these
+lines immediately while preserving the full engine log. Example:
+
+```json
+{"event":"progress","api":1,"t":42.1,"stage":"refine_bind","hero":"wolverine","tier":"mua2","engine":"mua2","script":"refine_bind.py","done":6,"total":120,"call":6,"max_calls":120,"loss":70.0,"best_loss":50.0,"best_call":3,"elapsed":42.0,"max_seconds":180.0,"stop_reason":null}
+```
+
+Default limits: 120 objective calls, 180 seconds, or 5 consecutive rising optimization losses
+(a relative 1e-6 noise allowance; derivative probes are excluded from the rising-loss test).
+The vendor script exposes `--max-calls`, `--max-seconds`, `--rising-calls`, `--progress-every`.
+Limits are checked before/after expensive objective calls, so the wall-clock cap can overrun by
+one in-flight call; preprocessing is included in elapsed time but is not preempted. `stop_reason`
+is null while running, then `divergence`, `wall_clock`, `max_calls`, `nonfinite_loss`,
+`nonfinite_gradient`, `stop_flag`, `deadline`, `stock_margin`, or `optimizer_finished`.
+The saved candidate uses the lowest finite evaluated loss, excluding derivative probes, even
+if the last optimizer trial was worse. A stopped fit is still independently validated; it does
+not become a gate pass or owner acceptance. Hard process cancellation cannot save an in-flight fit.
+
+### Accepted output bundles (offline provisioning)
+
+An accepted catalogue entry is checked before ordinary result caches, even with `--rebuild`.
+The private bundle cache is `<work>/accepted/<output_sha256>/` (shared across port folders and tool
+versions); `LEGENDS_MODELS_ACCEPTED` can point at an additional read-only bundle root supplied by
+the coordinator. Each bundle contains `actor.IGB`, `report.json` and `manifest.json` (schema 1).
+The actor must match the shipped acceptance catalogue's exact output hash. The report is re-gated on every use. The existing owner decision is honoured for the exact catalogued output hash even if later criteria fail. Events include `owner_accepted: true`, `acceptance_reason`, numeric pass/fail and a reason; report/output hash mismatches are never waived. Fresh fits must pass the current gate.
+
+The manifest binds hero/tier/source/output to content SHA-256 hashes for the selected source actor
+(read directly from the owned loose file/archive), port template, animation databases, sampler DLL,
+and, for MUA2, both materials/textures archives. Provisioning adds all clip DBs in the conversion
+manifest, attachment files in the gate report, and any extra `--port-file` inputs. Whole archive
+hashes are memoized only within one build; no cross-run size/mtime shortcut is used for acceptance.
+`input_key` is the SHA-256 of the sorted-key JSON input manifest. Options like iteration count
+and changes to the tool version do not override a matching accepted look.
+
+Accepted-cache miss reasons:
+
+- `inputs_changed`, `refit: true`, `changed_inputs[]`: input hashes differ, so a refit is allowed.
+  Ordinary results are looked up under an additional content-hash key (old stat-only entries cannot
+  match); fit once if absent, then reuse/re-gate that numeric output for the same changed inputs.
+  The new output still requires its own gate and exact-hash review.
+- `accepted_unavailable`, `refit: false`: matching source/template but missing/corrupt bundle or mismatched
+  actor/report hash. Refuse this tier with missing-input code 3 and try planned fallbacks; do not refit it.
+- `input_unavailable`: owned inputs cannot be read/verified; refuse this tier with code 3.
+- `accepted_inputs_match`, `hit: true`, `refit: false`: exact accepted actor reused and re-gated.
+
+The coordinator must populate bundles before release (no new network fetch path). Use the ORIGINAL
+accepted input installs/evidence, not later files whose hashes have merely been assumed equivalent:
+
+```text
+python -m legends_models.accepted --hero wolverine --tier mua2 --source 0301 --actor <accepted>/14301.IGB --report <accepted>/gate.json --conversion <accepted>/conversion.json --port <original-port> --mua2 <owned-MUA2> --cache <work>/accepted
+```
+
+This validates the catalogue output/source/template hashes and report binding, records the numeric result, and then atomically
+publishing the bundle manifest. No game assets belong in the source repository. If original input
+installs are gone, prove equivalent reference animation/texture/attachment inputs from surviving
+evidence before provisioning. `seed()` cannot establish that historical provenance for the operator.
+
 ## Behaviour the launcher can rely on
 
 - Source installs are only read. The pack is written only under `<port>\mods` (or `--game`), and
@@ -153,8 +219,7 @@ no API bump is required. `--verbose` writes technical recipe notes only to stder
 ## Timing (this PC, research defaults)
 
 Sharpen ~1-2 s per hero. MUA1 ~30-40 s per hero. Community: one round-2 fit per hero (not timed here; research batches allowed 5 min at 100 iterations) plus a 1-2 MB download.
-XML2 several minutes per fitted hero. MUA2 Wolverine ~15 min (fit + bind refinement). Show a
-per-hero progress bar; nothing needs a game slot or the desktop.
+XML2 several minutes per fitted hero. MUA2 Wolverine accepted reuse performs hash checks without fitting. Fresh MUA2 fitting still has a separate initial fit, followed by bind refinement bounded to 120 calls / 180 seconds per pass (plus at most one in-flight objective call). Show separate hero and refinement progress; nothing needs a game slot or the desktop.
 
 ## Packaging and releases
 
@@ -201,3 +266,9 @@ betas. It is set in `tools/freeze.py` (`MIN_LAUNCHER`, `default_min_launcher`) o
    `source_label` ("author's link" / "GitHub backup") and, for a backup download, `author_error`; `source` keeps its
    values (`author`/`mirror`), so a launcher that maps `source` keeps working. `--no-mirror` (`build`, `fetch`) for a
    player who wants the author's links only.
+
+### Cooperative cancellation (0.4.0 and newer)
+
+Set `LEGENDS_MODELS_CANCEL` to a unique initially absent request-file path. Creating that file requests cancellation. During conversion the CLI polls at most every 0.2 s, kills and reaps its engine, and exits 130. It also checks before a build, between characters and tier attempts, after a converter returns (including failures), and before publication. Once publication starts it finishes the complete group and load-order update and returns its actual result; keep the game-folder reservation until process exit. The launcher retains its existing compatibility policy; API 1, arguments and exit codes are unchanged. Published 0.3.0 lacks cooperative cancellation. Closing the launcher or forcibly killing a publishing process is outside this cooperative guarantee.
+
+Build diagnostics can lower `--refine-max-calls` / `--refine-max-seconds`; normal recipes keep 120 calls / 180 seconds per bind pass. Acceptance reuse still takes precedence over these options.

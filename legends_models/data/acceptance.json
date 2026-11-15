@@ -1,27 +1,61 @@
 {
- "note": "Owner-accepted outputs under the FULL gate (numeric + offline renders + in-game close-ups + on/off). Keyed by exact output bytes; any other output is reported as numeric-only until re-reviewed.",
- "records": [
-  {
-   "tier": "mua1",
-   "hero": "wolverine",
-   "source": "0301",
-   "source_sha256": "8b7ce520a52164aa000a6a81fdfd1815c2acbdf4d05e62c3651287b572f9aeab",
-   "template_sha256": "e71f29e0a9fdd0318e42ffa710546ef4ae839980719e4bfc2621c93307f850ca",
-   "output_sha256": "2b2df03984fbf6c7857b93ec2298d8920730e27396c9bb70f62a3f48fd91fad5",
-   "accepted": "2026-10-23",
-   "by": "owner",
-   "evidence": "mua-models2 REPORT.md (seam-safe 0301)"
-  },
-  {
-   "tier": "mua2",
-   "hero": "wolverine",
-   "source": "0301",
-   "source_sha256": "bb99b0f8f08b91435ea2aeb26bfd28816a86a7a1f94143142585b0d9c36ee2e1",
-   "template_sha256": "e71f29e0a9fdd0318e42ffa710546ef4ae839980719e4bfc2621c93307f850ca",
-   "output_sha256": "d066435e4cc3d5c38ab9de7be57d6d83e68ddbc65e6051db2f21dfe8a5ca7472",
-   "accepted": "2026-10-24",
-   "by": "full gate record (mua2-models)",
-   "evidence": "mua2-models REPORT.md"
-  }
- ]
+  "note": "Owner-accepted outputs under the FULL gate (numeric + offline renders + in-game close-ups + on/off). Keyed by exact output bytes; any other output is reported as numeric-only until re-reviewed.",
+  "records": [
+    {
+      "tier": "mua1",
+      "hero": "wolverine",
+      "source": "0301",
+      "source_sha256": "8b7ce520a52164aa000a6a81fdfd1815c2acbdf4d05e62c3651287b572f9aeab",
+      "template_sha256": "e71f29e0a9fdd0318e42ffa710546ef4ae839980719e4bfc2621c93307f850ca",
+      "output_sha256": "2b2df03984fbf6c7857b93ec2298d8920730e27396c9bb70f62a3f48fd91fad5",
+      "accepted": "2026-10-23",
+      "by": "owner",
+      "evidence": "mua-models2 REPORT.md (seam-safe 0301)"
+    },
+    {
+      "tier": "mua2",
+      "hero": "wolverine",
+      "source": "0301",
+      "source_sha256": "bb99b0f8f08b91435ea2aeb26bfd28816a86a7a1f94143142585b0d9c36ee2e1",
+      "template_sha256": "e71f29e0a9fdd0318e42ffa710546ef4ae839980719e4bfc2621c93307f850ca",
+      "output_sha256": "d066435e4cc3d5c38ab9de7be57d6d83e68ddbc65e6051db2f21dfe8a5ca7472",
+      "accepted": "2026-10-24",
+      "by": "full gate record (mua2-models)",
+      "evidence": "mua2-models REPORT.md"
+    },
+    {
+      "tier": "mua2",
+      "hero": "phoenix",
+      "source": "12302",
+      "source_sha256": "91420ec51659726b2081f555dc9499a4e141f791037f51c8b048a44f66dafdc5",
+      "template_sha256": "68e92c4442f72f8e98380fc0d7814bc2eb43e3783e2783f7d95a30e629fcb989",
+      "output_sha256": "a2c7e18985f1eb6fd9774b662c091aeb1bdff1e5fb7f9a61c0c34fa15d0ca905",
+      "accepted": "2026-10-27",
+      "by": "owner (2026-10-27)",
+      "evidence": "jean-arms/REPORT.md (arm-repaired Jean 12302, pack Upgraded-MUA2-Phoenix); jean-arms/mua2/evidence/phoenix/conversion.json"
+    },
+    {
+      "tier": "mua2",
+      "hero": "phoenix",
+      "source": "12301",
+      "source_sha256": "202940b75e496f133df11161168e0b614a4d7fc9fda06e5321f7fa34c27c283e",
+      "template_sha256": "68e92c4442f72f8e98380fc0d7814bc2eb43e3783e2783f7d95a30e629fcb989",
+      "output_sha256": "d2628a6ef1d8d26abf2b4671e0e233d5065082a8d8d1d053392a7b913ad69bd3",
+      "accepted": "2026-10-27",
+      "by": "owner (2026-10-27)",
+      "evidence": "round3/REPORT.md (Jean 12301 look pack, phoenix-12301); round3/jobs/phoenix-12301/before/conversion.json"
+    },
+    {
+      "tier": "mua2",
+      "hero": "iceman",
+      "source": "0801",
+      "source_sha256": "552b25799853181ac176d95819b92a5c1d590db2af60a8e25140ad9bd24b14d2",
+      "template_sha256": "196d5ae5fe5b290a016a675be2e193d2739cc40a1002abdfc93f41ac2f92f094",
+      "output_sha256": "8a862f855c20e47448449face84f38e206d01be373e163a0e90fc3003b71ed4d",
+      "accepted": "2026-10-27",
+      "by": "owner (2026-10-27)",
+      "evidence": "round3/REPORT.md section \"Approved Iceman before/after evidence\" (owner approved in game 2026-10-26); work/iceman-0801/mua2/evidence/iceman/conversion.json",
+      "later_gate_waiver": "owner-accepted look; fails regional arm gate (length excess 86 pp, added in fc4366e)"
+    }
+  ]
 }

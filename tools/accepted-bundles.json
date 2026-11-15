@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "bundles": [
+    {
+      "hero": "wolverine",
+      "tier": "mua2",
+      "source": "0301",
+      "output_sha256": "d066435e4cc3d5c38ab9de7be57d6d83e68ddbc65e6051db2f21dfe8a5ca7472",
+      "files": {
+        "actor.IGB": "d066435e4cc3d5c38ab9de7be57d6d83e68ddbc65e6051db2f21dfe8a5ca7472",
+        "manifest.json": "d64d82e28135396b4d75cb15cb2e5b77ae7f02adfa8eeac5794026df18a4ac76",
+        "report.json": "a9bfff0b5b22115939a1a2f20237a35df4ee300a5cc021a7a5d49f0ba70178c9"
+      }
+    },
+    {
+      "hero": "phoenix",
+      "tier": "mua2",
+      "source": "12301",
+      "output_sha256": "d2628a6ef1d8d26abf2b4671e0e233d5065082a8d8d1d053392a7b913ad69bd3",
+      "status": "accepted",
+      "input_provenance": "complete",
+      "files": {
+        "actor.IGB": "d2628a6ef1d8d26abf2b4671e0e233d5065082a8d8d1d053392a7b913ad69bd3",
+        "manifest.json": "e886a14d1b96a30f736e3d3d31b3ddfb83aa1db94d40a562544cf577335eef71",
+        "report.json": "ec3cc5e56616ec20471831627761cf86e5f28dc817b418cb82a47b8a99914808"
+      }
+    },
+    {
+      "hero": "phoenix",
+      "tier": "mua2",
+      "source": "12302",
+      "output_sha256": "a2c7e18985f1eb6fd9774b662c091aeb1bdff1e5fb7f9a61c0c34fa15d0ca905",
+      "status": "accepted",
+      "input_provenance": "complete",
+      "files": {
+        "actor.IGB": "a2c7e18985f1eb6fd9774b662c091aeb1bdff1e5fb7f9a61c0c34fa15d0ca905",
+        "manifest.json": "c013d48eb7df9b6d4038f3ab92e7a8d1f78c15844b7b243f7d6630179cc41221",
+        "report.json": "9b167b321d9c21e1487e696eb48f2cef781cb9d6645c248f5c2ff23dc5d6e520"
+      }
+    },
+    {
+      "hero": "iceman",
+      "tier": "mua2",
+      "source": "0801",
+      "output_sha256": "8a862f855c20e47448449face84f38e206d01be373e163a0e90fc3003b71ed4d",
+      "status": "accepted",
+      "input_provenance": "complete",
+      "files": {
+        "actor.IGB": "8a862f855c20e47448449face84f38e206d01be373e163a0e90fc3003b71ed4d",
+        "manifest.json": "80b9c38ff0ee08ba12a5e7e597419dd174aae35c7a88cab961b0f95d24b0a9ff",
+        "report.json": "e0072e004d9cdad8cf99095f1bfbff8e6e71ca9a96b58ec92daaf8f51c610929"
+      }
+    }
+  ]
+}

@@ -29,6 +29,10 @@ DESCRIPTIONS = {('wolverine', 'mua1', '0303'): 'Classic yellow/blue',
                 ('wolverine', 'mua1', '0302'): 'Brown/yellow',
                 ('nightcrawler', 'mua1', '4701'): 'Classic look (MUA1 story character)',
                 ('phoenix', 'mua1', '12301'): 'Jean Grey as MUA1 story character'}
+# The owned MUA2 stat rows contain unresolved localization tokens for Jean.
+# Describe the reviewed looks rather than exposing a raw ID or inventing a game label.
+REVIEWED_LOOK_LABELS = {('phoenix', 'mua2', '12301'): 'Green and gold',
+                        ('phoenix', 'mua2', '12302'): 'Masked yellow and green'}
 TIER_WORD = {'mua1': 'MUA1', 'mua2': 'MUA2', 'xml2': 'XML2'}
 
 
@@ -57,7 +61,9 @@ def game_label(hero, tier, costume, names=None):
     if tier == 'sharpen':
         return 'Sharpened original'
     label = costume_names.label(hero.name, tier, costume, names)
-    return label or f'{TIER_WORD.get(tier, tier)} model {costume}'
+    if label and not label.startswith('!BADREF:'):
+        return label
+    return REVIEWED_LOOK_LABELS.get((hero.key, tier, costume), label or f'{TIER_WORD.get(tier, tier)} model {costume}')
 
 
 def info(hero, tier, ids, port_work=None, data=None, names=None):

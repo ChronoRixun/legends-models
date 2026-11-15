@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 import traceback
@@ -16,6 +17,20 @@ from .progress import Reporter
 def default_work():
     base = os.environ.get('LEGENDS_MODELS_WORK') or os.path.join(os.environ.get('LOCALAPPDATA', str(Path.home())), 'legends-models')
     return Path(base)
+
+
+def positive_int(value):
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError('must be positive')
+    return number
+
+
+def positive_seconds(value):
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError('must be finite and positive')
+    return number
 
 
 def parser():
@@ -48,6 +63,8 @@ def parser():
                            'author\'s link fails (default: this project\'s GitHub backup; "off" = none)')
             s.add_argument('--no-mirror', action='store_true',
                            help='community archives only from the author\'s links (never the GitHub backup)')
+            s.add_argument('--refine-max-calls', type=positive_int, help='MUA2 bind objective-call ceiling (default 120)')
+            s.add_argument('--refine-max-seconds', type=positive_seconds, help='MUA2 bind wall-clock ceiling (default 180 s)')
             s.add_argument('--iterations', type=int, help='fitter iteration ceiling (research default if omitted)')
             s.add_argument('--ai-model', type=Path, help='sharpen: local Real-ESRGAN x4 ONNX model (optional)')
             s.add_argument('--no-cel', action='store_true', help='community: use the non-cel skin variant')
@@ -87,9 +104,58 @@ def _game(args, inst):
     return Path(g)
 
 
+def _availability(args, inst):
+    from types import SimpleNamespace
+    from . import accepted
+    from .build import acceptance_records
+    records = acceptance_records()
+    by_choice = {}
+    for digest, record in records.items():
+        if record.get('status', 'accepted') == 'accepted':
+            by_choice.setdefault((record['hero'], record['tier'], record['source']), {})[digest] = record
+    verified, identities = {}, {}
+    # Only the selected source actor and stock template are read for planning.
+    # The build still hashes all animation/material/texture inputs independently.
+    inputs = SimpleNamespace(port=inst['port'].path, mua1=inst['mua1'].path, mua2=inst['mua2'].path)
+
+    def available(tier, hero, recipe, source=None):
+        ok, why = scanmod.availability(inst, tier, hero, recipe, source)
+        if not ok or recipe is None:
+            return ok, why
+        source = source or recipe.source
+        key = hero.key, tier, source
+        known = by_choice.get(key, {})
+        if not known and not recipe.reuse_only:
+            return ok, why
+        choice = planmod.Choice(tier, source, recipe.status, True, 'local accepted bundle')
+        if key not in identities:
+            try:
+                identities[key] = (accepted.input_hash(dict(root='source'), hero, choice, inputs),
+                                   accepted.input_hash(dict(root='port', path=f'Actors/{hero.skin}.IGB'), hero, choice, inputs))
+            except (OSError, ValueError, KeyError, TypeError):
+                identities[key] = None
+        identity = identities[key]
+        if identity is None:
+            return False, 'Approved model inputs could not be verified'
+        matching = {digest: record for digest, record in known.items()
+                    if (record['source_sha256'], record['template_sha256']) == identity}
+        if not matching:
+            if recipe.reuse_only:
+                return False, 'Approved model does not match your inputs'
+            return ok, why  # changed inputs retain the existing fresh-fit path
+        if key not in verified:
+            verified[key] = accepted.bundle_available(hero, choice, args.work / 'accepted', matching)
+        if not verified[key]:
+            return False, 'Approved model is not available locally'
+        return ok, why
+
+    return available
+
+
 def cmd_scan(args, rep):
     inst = scanmod.scan(args.port, args.mua1, args.mua2, args.steam)
     cache = scanmod.scan_community(args.work / 'community-cache')
+    available = _availability(args, inst)
     from . import costumes as costumesmod
     from .workspace import port_work_path
     pwork = port_work_path(args.work, inst['port'].path) if inst['port'].path else None
@@ -100,10 +166,18 @@ def cmd_scan(args, rep):
         tiers = {}
         for t in roster.TIERS:
             r = h.recipe(t)
-            ok, why = scanmod.availability(inst, t, h, r)
+            ok, why = available(t, h, r)
             entry = dict(available=ok, reason=why)
             if r:
-                entry.update(source=r.source, status=r.status, note=r.player_line, costumes=sorted(set(r.alternatives) | {r.source}) if r.source else [])
+                ids = sorted(set(r.alternatives) | {r.source}) if r.source else []
+                if r.reuse_only:
+                    ids = [c for c in ids if available(t, h, r, c)[0]]
+                    if ids:
+                        ok, why = True, r.player_line
+                elif r.accepted_sources:
+                    ids = [c for c in ids if c not in r.accepted_sources or available(t, h, r, c)[0]]
+                source = ids[0] if r.reuse_only and ids and r.source not in ids else r.source
+                entry.update(available=ok, reason=why, source=source, status=r.status, note=r.player_line, costumes=ids)
                 entry['author'] = costumesmod.tier_author(t)
                 entry['costume_info'] = costumesmod.info(h, t, entry['costumes'], pwork, names=names)
             if t == 'community' and r:
@@ -126,7 +200,18 @@ def cmd_scan(args, rep):
 
 def _plan(args, inst):
     costumes = planmod.parse_costumes(getattr(args, 'costume', None))
-    avail = lambda tier, hero, recipe, source: scanmod.availability(inst, tier, hero, recipe, source)
+    avail = _availability(args, inst)
+    # Prefer the default approved look, then another verified approved look when
+    # no costume was requested. Explicit choices retain their existing fallback
+    # semantics; a missing requested costume never silently changes appearance.
+    for hero in _heroes(args):
+        for tier, recipe in hero.recipes.items():
+            if not recipe.reuse_only or (hero.key, tier) in costumes or (hero.key, None) in costumes:
+                continue
+            for source in dict.fromkeys((recipe.source, *recipe.alternatives)):
+                if avail(tier, hero, recipe, source)[0]:
+                    costumes[hero.key, tier] = source
+                    break
     if getattr(args, 'offline', False):
         cached = scanmod.scan_community(args.work / 'community-cache')
         online_avail = avail
@@ -169,7 +254,8 @@ def cmd_build(args, rep):
                   inst['mua2'].path if inst['mua2'].found else None, args.work / 'community-cache', community.resolve_mirror(args.mirror, disabled=args.no_mirror),
                   args.iterations, args.ai_model, not args.no_cel,
                   heads=not args.no_heads or args.heads_only, heads_only=args.heads_only,
-                  materials=tuple((args.materials or '').split('+')) if args.materials else (), offline=args.offline)
+                  materials=tuple((args.materials or '').split('+')) if args.materials else (), offline=args.offline, accepted_cache=args.work / 'accepted',
+                  refine_max_calls=args.refine_max_calls, refine_max_seconds=args.refine_max_seconds)
     pack = args.pack or planmod.PACK_NAMES[args.mode]
     code, result = run_build(inst, rows, ctx, _game(args, inst), pack, args.mode, rep,
                              keep_existing=args.keep_existing or bool(args.hero), enable=not args.disabled,

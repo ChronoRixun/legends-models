@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """legends-models: optional character-model mods for Legends Classic, built on the player's PC
 from games the player owns. Never ships, downloads or bundles game assets."""
-__version__ = '0.3.0'   # the numeric release base; a release tag may add -beta.N / -rc.N (tools/release_metadata.py)
+__version__ = '0.4.0'   # the numeric release base; a release tag may add -beta.N / -rc.N (tools/release_metadata.py)
 
 
 def _frozen_version(base):

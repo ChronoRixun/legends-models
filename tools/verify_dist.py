@@ -18,6 +18,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+from private_bundle_guard import check_zip
+
 FORBIDDEN = {'.igb', '.igz', '.rar', '.7z', '.dds', '.png', '.jpg', '.jpeg', '.tga', '.bmp', '.hkx', '.bin',
              '.xmlb', '.engb', '.onnx', '.zip', '.iso', '.xbe'}
 FIELDS = {'version': str, 'content_version': int, 'zip': str, 'size': int, 'sha256': str, 'min_launcher': str,
@@ -53,6 +55,7 @@ def verify(dist: Path, version: str | None, sampler: bool | None) -> list[str]:
     if not archive.is_file():
         return errors + [f'{archive} is missing']
     digest = sha256_file(archive)
+    errors.extend(check_zip(archive))
     if archive.stat().st_size != m['size'] or digest != m['sha256']:
         errors.append(f'zip: size {archive.stat().st_size} / sha256 {digest} != manifest {m["size"]} / {m["sha256"]}')
     with zipfile.ZipFile(archive) as z:

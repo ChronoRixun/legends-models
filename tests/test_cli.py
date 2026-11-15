@@ -32,6 +32,8 @@ class Fixture(unittest.TestCase):
         (self.port / 'Actors').mkdir(parents=True)
         for h in roster.HEROES:
             (self.port / 'Actors' / f'{h.skin}.IGB').write_bytes(b'stock')
+            (self.port / 'Actors' / f'{h.animation_db}.IGB').write_bytes(b'animation')
+        (self.port / 'Actors' / 'common.IGB').write_bytes(b'common')
         for donor in ['0501', '0301', '0401']:
             (self.port / 'Actors' / f'{donor}.IGB').write_bytes(b'xml2')
         (self.port / 'libIGSg.dll').write_bytes(b'')
@@ -72,6 +74,15 @@ class Commands(Fixture):
         self.assertFalse(gambit['available'])   # installed model, but conversion has a known problem
         self.assertEqual(gambit['reason'], 'MUA2 conversion not ready: the coat lining shows through the coat')
         self.assertEqual(heroes['wolverine']['tiers']['mua2']['reason'], 'MUA2 conversion ready')
+
+    def test_invalid_refinement_limits_fail_before_engine_start(self):
+        for option, value in [('--refine-max-calls', '0'), ('--refine-max-calls', '-1'),
+                              ('--refine-max-seconds', '0'), ('--refine-max-seconds', 'nan'),
+                              ('--refine-max-seconds', 'inf')]:
+            with self.subTest(option=option, value=value), mock.patch.dict(tiers.ADAPTERS, {'mua2': mock.Mock(side_effect=AssertionError('engine started'))}), contextlib.redirect_stderr(io.StringIO()):
+                code, events = run_cli('build', '--mode', 'upgraded', *self.base, option, value)
+                self.assertEqual(code, errors.USAGE)
+                self.assertFalse(any(e['event'] == 'engine' for e in events))
 
     def test_verbose_notes_only_on_stderr(self):
         import dataclasses
@@ -158,6 +169,94 @@ class Build(Fixture):
         fake = fake_adapter(Path(self.tmp.name) / 'cand', verdicts)
         with mock.patch.dict(tiers.ADAPTERS, {t: fake for t in roster.TIERS}):
             return run_cli('build', *self.base, '--layout', 'pack', *extra)
+
+    def test_cancel_during_conversion_preserves_models_and_retry_works(self):
+        import os
+        for layout in ('pack', 'per-hero'):
+            with self.subTest(layout=layout):
+                args = ['--mode', 'community', '--layout', layout, '--hero', 'beast', '--hero', 'storm', '--rebuild']
+                self.assertEqual(self.build({}, *args)[0], 0)
+                mods = self.port / 'mods'
+                before = {p.relative_to(mods): p.read_bytes() for p in mods.rglob('*') if p.is_file()}
+                signal = Path(self.tmp.name) / 'cancel'
+                calls = []
+                fake = fake_adapter(Path(self.tmp.name) / 'cancel-candidates', {})
+
+                def adapter(hero, choice, ctx):
+                    calls.append(hero.key)
+                    candidate = fake(hero, choice, ctx)
+                    signal.write_text('cancel')  # arrives while the current character converts
+                    return candidate
+
+                with mock.patch.dict(os.environ, LEGENDS_MODELS_CANCEL=str(signal)):
+                    with mock.patch.dict(tiers.ADAPTERS, {t: adapter for t in roster.TIERS}):
+                        code, events = run_cli('build', *self.base, *args)
+                    self.assertEqual(code, errors.CANCELLED)
+                    self.assertEqual(len(calls), 1, 'never start the next character')
+                    self.assertEqual(events[-1]['code'], errors.CANCELLED)
+                    self.assertEqual(before, {p.relative_to(mods): p.read_bytes() for p in mods.rglob('*') if p.is_file()})
+                    self.assertFalse(any(p.name.startswith('.legends-models-staging-') for p in mods.iterdir()))
+                    signal.unlink()
+                    self.assertEqual(self.build({}, *args)[0], 0)
+
+    def test_cancel_before_build_starts_no_converter(self):
+        import os
+        signal = Path(self.tmp.name) / 'cancel'
+        signal.touch()
+        with mock.patch.dict(os.environ, LEGENDS_MODELS_CANCEL=str(signal)):
+            with mock.patch.dict(tiers.ADAPTERS, {t: lambda *a: self.fail('converter started') for t in roster.TIERS}):
+                code, events = run_cli('build', *self.base, '--mode', 'community', '--hero', 'beast')
+        self.assertEqual(code, errors.CANCELLED)
+        self.assertFalse((self.port / 'mods').exists())
+
+    def test_build_separate_game_output_preserves_live_mods(self):
+        import shutil
+        self.assertEqual(self.build({}, '--mode', 'community', '--hero', 'beast')[0], 0)
+        mods = self.port / 'mods'
+        before = {p.relative_to(mods): p.read_bytes() for p in mods.rglob('*') if p.is_file()}
+        stage = Path(self.tmp.name) / 'stage'
+        shutil.copytree(mods, stage / 'mods')  # the launcher's private --game snapshot
+        self.assertEqual(self.build({}, '--game', stage, '--layout', 'per-hero', '--mode', 'community',
+                                    '--hero', 'beast', '--hero', 'storm')[0], 0)
+        self.assertTrue((stage / 'mods' / 'Community-Storm' / 'legends-models.json').is_file())
+        self.assertEqual(before, {p.relative_to(mods): p.read_bytes() for p in mods.rglob('*') if p.is_file()})
+
+    def test_cancelled_conversion_error_does_not_try_fallback(self):
+        import os
+        signal = Path(self.tmp.name) / 'cancel-error'
+        calls = []
+
+        def adapter(hero, choice, ctx):
+            calls.append(choice.tier)
+            signal.touch()
+            raise errors.ToolError('converter interrupted', errors.MISSING_INPUT)
+
+        with mock.patch.dict(os.environ, LEGENDS_MODELS_CANCEL=str(signal)):
+            with mock.patch.dict(tiers.ADAPTERS, {t: adapter for t in roster.TIERS}):
+                code, events = run_cli('build', *self.base, '--mode', 'upgraded', '--hero', 'wolverine')
+        self.assertEqual(code, errors.CANCELLED)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(events[-1]['code'], errors.CANCELLED)
+
+    def test_phoenix_skips_mua1_after_mua2_refusal(self):
+        calls = []
+        fake = fake_adapter(Path(self.tmp.name) / 'safety-candidates', {})
+        def adapter(hero, choice, ctx):
+            calls.append(choice.tier)
+            if choice.tier == 'mua2':
+                raise errors.ToolError('private accepted bundle unavailable', errors.MISSING_INPUT)
+            self.assertNotEqual(choice.tier, 'mua1', 'known stretchy MUA1 Jean must not be converted or reused')
+            return fake(hero, choice, ctx)
+        with mock.patch('legends_models.scan.availability', return_value=(True, 'owned')), \
+             mock.patch('legends_models.accepted.bundle_available', return_value=True, create=True), \
+             mock.patch('legends_models.accepted.input_hash', side_effect=catalogued_identity), \
+             mock.patch('legends_models.accepted.lookup', return_value=(None, None)), \
+             mock.patch.dict(tiers.ADAPTERS, {t: adapter for t in roster.TIERS}):
+            code, events = run_cli('build', *self.base, '--mode', 'upgraded', '--hero', 'phoenix', '--rebuild')
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, ['mua2', 'community'])
+        result = next(e for e in events if e['event'] == 'result')
+        self.assertEqual(result['characters']['phoenix']['tier'], 'community')
 
     def test_upgraded_with_fallbacks_partial_result(self):
         verdicts = {('wolverine', 'mua2'): 'fail', ('storm', 'mua1'): 'error', ('storm', 'community'): 'fail',
@@ -299,3 +398,54 @@ class PerHeroLayout(Fixture):
         text = (self.port / 'mods' / 'load-order.txt').read_text()
         self.assertIn('-Upgraded-MUA-Storm', text)
         self.assertIn('+Sharpened-Storm', text)
+
+
+class ReuseOnlyPlanning(Fixture):
+    def test_no_bundle_plan_matches_installed_fallback_and_scan_hides_mua2(self):
+        with mock.patch('legends_models.scan.availability', return_value=(True, 'owned')), \
+             mock.patch('legends_models.accepted.input_hash', side_effect=catalogued_identity):
+            code, events = run_cli('plan', *self.base, '--mode', 'upgraded', '--hero', 'phoenix', '--hero', 'iceman')
+            self.assertEqual(code, 0)
+            rows = {r['hero']: r for r in events[-1]['rows']}
+            installed = {'phoenix': ('community', 'Ultimate XML1'), 'iceman': ('mua1', '0801')}
+            for hero, expected in installed.items():
+                self.assertEqual((rows[hero]['tier'], rows[hero]['source']), expected,
+                                 'unchanged launcher must not offer Update again after the fallback')
+            code, scan = run_cli('scan', *self.base, '--hero', 'phoenix', '--hero', 'iceman')
+            self.assertEqual(code, 0)
+            for hero in installed:
+                tier = scan[-1]['heroes'][hero]['tiers']['mua2']
+                self.assertFalse(tier['available'])
+                self.assertEqual(tier['costumes'], [])
+
+    def test_only_verified_costumes_are_offered_and_default_uses_available_approved_look(self):
+        def verified(hero, choice, cache, records):
+            return choice.tier == 'mua2' and hero.key == 'phoenix' and choice.source == '12301'
+        with mock.patch('legends_models.scan.availability', return_value=(True, 'owned')), \
+             mock.patch('legends_models.accepted.bundle_available', side_effect=verified, create=True), \
+             mock.patch('legends_models.accepted.input_hash', side_effect=catalogued_identity):
+            code, events = run_cli('scan', *self.base, '--hero', 'phoenix')
+            tier = events[-1]['heroes']['phoenix']['tiers']['mua2']
+            self.assertTrue(tier['available'])
+            self.assertEqual((tier['source'], tier['costumes']), ('12301', ['12301']))
+            code, events = run_cli('plan', *self.base, '--mode', 'upgraded', '--hero', 'phoenix')
+            self.assertEqual((events[-1]['rows'][0]['tier'], events[-1]['rows'][0]['source']), ('mua2', '12301'))
+            code, events = run_cli('plan', *self.base, '--mode', 'upgraded', '--hero', 'phoenix',
+                                   '--costume', 'phoenix=mua2:12302')
+            self.assertEqual(events[-1]['rows'][0]['tier'], 'community', 'an explicit missing look must not silently switch costumes')
+
+
+def catalogued_identity(ref, hero, choice, ctx):
+    from legends_models.build import acceptance_records
+    row = next(r for r in acceptance_records().values()
+               if (r['hero'], r['tier'], r['source']) == (hero.key, choice.tier, choice.source))
+    return row['source_sha256'] if ref['root'] == 'source' else row['template_sha256']
+
+
+class ExplicitInstallScope(Fixture):
+    def test_all_explicit_installs_do_not_walk_drive_roots_for_discovery(self):
+        from legends_models import scan
+        with mock.patch.object(scan, 'steam_libraries', side_effect=AssertionError('explicit inputs need no drive search')):
+            inst = scan.scan(self.port, self.mua1, self.mua2)
+        self.assertTrue(all(inst[k].found for k in ('port', 'mua1', 'mua2')))
+        self.assertEqual(inst['libraries'], [])

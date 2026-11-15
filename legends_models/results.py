@@ -43,9 +43,11 @@ def source_identity(hero, choice, ctx):
     return []
 
 
-def key(hero, choice, ctx):
+def key(hero, choice, ctx, accepted_inputs=None):
     data = dict(tier=choice.tier, hero=hero.key, source=choice.source, iterations=ctx.iterations, tool=__version__,
                 port=fingerprint(ctx.port), inputs=source_identity(hero, choice, ctx))
+    if accepted_inputs is not None:
+        data['accepted_inputs'] = accepted_inputs
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:32]
 
 
