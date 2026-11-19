@@ -20,7 +20,7 @@ It is a converter, not a download of models: every model file is made on your co
 downloaded from the community author's own links (or his backup copies). It writes an ordinary mod folder for the XML2 Fix mod loader;
 remove the folder (or switch it off in the launcher's Mods tab) and the stock models are back.
 
-> **Status: 0.4.0.** The Ultimate Legends launcher's Character models page (launcher
+> **Status: 0.4.1.** The Ultimate Legends launcher's Character models page (launcher
 > 0.5.0 or newer) installs and drives it on both update channels; it also works from the command line.
 > Jean/Phoenix's MUA1 fit is disabled in Upgraded because of arm distortion. Her
 > fallback is Community. Exact approved MUA2 Jean/Iceman reuse requires separately
@@ -48,7 +48,7 @@ remove the folder (or switch it off in the launcher's Mods tab) and the stock mo
 
 ## Getting it
 
-- **With the Ultimate Legends launcher** (recommended, from its next release): the X-Men Legends page gets a
+- **With the Ultimate Legends launcher** (recommended, launcher 0.5.0 or newer): the X-Men Legends page has a
   Character models section that runs this tool for you (Off / Community pack / Upgraded / More). Every release
   carries the manifest `legends-models.json` the launcher reads (see [LAUNCHER-API.md](LAUNCHER-API.md)).
 - **Standalone**: download `legends-models-<version>-win64.zip` from the
@@ -151,7 +151,9 @@ Two fitter rules (`engines/vendor/_shared/layers.py`, used by the MUA1/MUA2 conv
   frame within the stock chain distance. The gate itself is unchanged.
 
 The visual half of the gate (renders and in-game close-ups) cannot be automated; owner-reviewed outputs are
-recorded by exact SHA-256 in `legends_models/data/acceptance.json` and reported as `owner_accepted` per character.
+recorded by exact SHA-256 in `legends_models/data/acceptance.json` and reported as `owner_accepted` per character;
+since 0.4.1 the launcher's Character models page shows them as **Approved model** (the detailed reason stays in
+`--verbose`).
 
 ## Command line
 
